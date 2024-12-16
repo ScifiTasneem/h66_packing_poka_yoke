@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Packing Inventory Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='packing_summary.css') }}">
+     <link rel="icon" href="{{url_for('static', filename='images/favicon.png')}}">
+</head>
+
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo-container">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Kalyani Transmission Technology" class="logo">
+                <img src="{{ url_for('static', filename='images/logo copy.png') }}" alt="Kalyani Transmission Technology" class="logo">
+            </div>
+            <div class="title-container">
+                <span class="title">Packing Inventory Dashboard</span>
+            </div>
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Search" onkeyup="searchDresser()" class="search-bar">
+                <button class="icon-button" onclick="toggleSearchBar()" data-tooltip="Search">
+                    <img src="{{ url_for('static', filename='images/search.png') }}" alt="Search" class="icon-img">
+                </button>
+            </div>
+            <button class="icon-button" onclick="window.location.href='/logout';" data-tooltip="Logout">
+                <img src="{{ url_for('static', filename='images/logout.png') }}" alt="Logout" class="icon-img">
+            </button>
+        </header>
+
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Date And Time</th>
+                        <th>Box No.</th>
+                        <th>Part QTY</th>
+                        <th>Rev No</th>
+                        <th>Group Type</th>
+                        <th>Operator Name</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    {% for row in data %}
+                    <tr>
+                        <td>{{ row.date_time }}</td>
+                        <td>{{ row.box_id }}</td>
+                        <td>{{ row.part_qty }}</td>
+                        <td>{{ row.rev_no }}</td>
+                        <td>{{ row.group_type }}</td>
+                        <td>{{ row.operator_name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+    </div>
+
+    <script>
+        // Show/Hide Search Bar
+        function toggleSearchBar() {
+            const searchBar = document.getElementById("searchInput");
+            searchBar.style.display = searchBar.style.display === "none" ? "block" : "none";
+            if (searchBar.style.display === "block") {
+                searchBar.focus();
+            }
+        }
+
+        // Modal Handling
+        const modal = document.getElementById("statusModal");
+        const closeModal = document.getElementsByClassName("close")[0];
+        let currentRow;
+
+        document.querySelectorAll(".edit-btn").forEach(button => {
+            button.addEventListener("click", function () {
+                currentRow = this.closest("tr");
+                const currentStatus = currentRow.querySelector("td:nth-child(4) span").innerText;
+                document.getElementById("statusSelect").value = currentStatus === "Pending for Status Update" ? "Pending" : currentStatus;
+                modal.style.display = "block";
+            });
+        });
+
+        closeModal.onclick = function () {
+            modal.style.display = "none";
+        };
+
+        document.getElementById("saveStatus").addEventListener("click", function () {
+            const newStatus = document.getElementById("statusSelect").value;
+            const setLifeCell = currentRow.querySelector("td:nth-child(5)");
+
+            currentRow.querySelector("td:nth-child(4) span").innerText = newStatus === "Pending" ? "Pending for Status Update" : newStatus;
+            currentRow.querySelector("td:nth-child(4) span").className = newStatus === "OK" ? "status-ok" : newStatus === "Pending" ? "status-pending" : "status-not-ok";
+
+            if (newStatus === "Pending") {
+                setLifeCell.innerText = "Pending for Status Update";
+            } else if (newStatus === "Not OK") {
+                setLifeCell.innerText = "Check Required";
+            } else {
+                setLifeCell.innerText = "25,000";
+            }
+            modal.style.display = "none";
+        });
+
+        window.onclick = function (event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        };
+
+        // Dropdown Color Change
+        function setDropdownColor(selectElement) {
+            selectElement.classList.remove("status-ok", "status-not-ok", "status-pending");
+            if (selectElement.value === "OK") {
+                selectElement.classList.add("status-ok");
+            } else if (selectElement.value === "Not OK") {
+                selectElement.classList.add("status-not-ok");
+            } else {
+                selectElement.classList.add("status-pending");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll(".status-dropdown").forEach(function (dropdown) {
+                setDropdownColor(dropdown); 
+                dropdown.addEventListener("change", function () {
+                    setDropdownColor(dropdown);
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>

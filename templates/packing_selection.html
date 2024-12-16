@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operator Input Form</title>
+    <script src="{{ url_for('static', filename='jquery-3.6.0.min.js')}}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='packing_selection.css') }}">
+     <link rel="icon" href="{{url_for('static', filename='images/favicon.png')}}">
+</head>
+
+<body>
+    <div class="error-container" id="error-message">
+        <div class="error-card" id="last-box-error">
+            Last Box ID: {{ last_box_id }}
+        </div>
+       <div id="flash-message" class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <ul class="flash-messages">
+                        {% for category, message in messages %}
+                            {% if category == 'error' %}
+                                <li class="flash-message error">{{ message }}</li>
+                            {% else %}
+                                <li class="flash-message success">{{ message }}</li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            {% endwith %}
+       </div>
+    </div>
+
+
+    <div class="form-container">
+        <div class="form-card">
+            <h1 class="form-title">H66 Packing Selection</h1>
+            <form method="POST" class="form" onsubmit="return validateForm()">
+                <div class="form-group">
+                    <label for="box-id" class="form-label">Box ID:</label>
+                    <input type="text" id="box-id" name="box_id" class="form-input" placeholder="Type Box ID" required>
+                </div>
+                <div class="form-group">
+                    <label for="h1-options" class="form-label">Select Group Type:</label>
+                    <select id="h1-options" name="group_options" class="form-select" required>
+                        <option value="">Select</option>
+                        <option value="A">A</option>
+                        <option value="B">B</option>
+                        <option value="C">C</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="operator-name" class="form-label">Operator Name:</label>
+                    <input type="text" id="operator-name" name="operator_name" class="form-input"
+                        placeholder="Type Operator Name" required>
+                </div>
+                <button type="submit" class="form-submit-btn">Submit</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function validateForm() {
+            const boxId = document.getElementById('box-id').value;
+            const groupOptions = document.getElementById('h1-options').value;
+            const operatorName = document.getElementById('operator-name').value;
+            const errorMessage = document.getElementById('error-message');
+            const formError = document.getElementById('form-error');
+
+            if (boxId === "" || groupOptions === "" || operatorName === "") {
+                errorMessage.classList.add('show-error');
+                formError.style.display = "block"; // Show specific form error
+                return false;
+            } else {
+                errorMessage.classList.remove('show-error');
+                formError.style.display = "none"; // Hide specific form error
+                return true;
+            }
+        }
+
+        $(document).ready(function () {
+            function updateMessage() {
+                $.ajax({
+                    url: '/message',
+                    dataType: 'json',
+                    success: function (msg_response) {
+                        if (msg_response.length > 0 && msg_response[0].message) {
+                            var msg = msg_response[0].message;
+                            $('#message').text(msg);
+
+                            if (msg_response[0].type === 'error') {
+                                $('#message').css('color', 'red');
+                                showErrorOverlay(msg); // Show overlay if message type is error
+                            } else {
+                                $('#message').css('color', 'green');
+                            }
+                        } else {
+                            $('#message').text("No Messages Exist!");
+                        }
+                    },
+                    error: function (error) {
+                        console.log('Error:', error);
+                    }
+                });
+            }
+
+            setInterval(updateMessage, 1000);
+        });
+
+        function showErrorOverlay(errorMessage) {
+            $('#error-message').text(errorMessage);
+            $('#error-overlay').removeClass('hidden');
+        }
+
+        function closeErrorOverlay() {
+            $('#error-overlay').addClass('hidden');
+        }
+
+
+        //         function updateErrorMessage(message) {
+        //             const errorCard = document.getElementById('message');
+        //             if (message) {
+        //             errorCard.textContent = message;
+        //             errorCard.style.display = 'flex'; 
+        //             } else {
+        //             errorCard.style.display = 'none'; 
+        //          }
+        //          }
+
+        //         function fetchBackendMessage() {
+        //          setTimeout(() => {
+        //         const backendMessage = 'This is a dynamic error message from the backend!';
+        //         updateErrorMessage(backendMessage);
+        //     }, 1000);
+        // }
+        // fetchBackendMessage();
+
+    </script>
+</body>
+
+</html>

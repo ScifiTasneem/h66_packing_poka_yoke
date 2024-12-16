@@ -1,0 +1,213 @@
+body {
+    background-color: #f0f4f8;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.error-container {
+    display: none;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+    position: absolute;
+    top: 20px;
+    flex-direction: column;
+    gap: 10px;
+    padding-left: 93px;
+}
+
+.error-card {
+    background-color: rgb(224, 255, 224);
+    color: green;
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    max-width: 90%;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.show-error {
+    display: flex;
+    align-items: center;
+}
+
+.form-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 20px;
+    margin-top: 80px;
+}
+
+.form-card {
+    background-color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-radius: 10px;
+    padding: 30px;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 20px;
+}
+
+.form-title {
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 18px;
+    display: flex;
+    flex-direction: column;
+}
+
+.form-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #4B5563;
+    margin-bottom: 8px;
+}
+
+.form-input,
+.form-select {
+    width: 93%;
+    padding: 10px;
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #333;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.form-input:focus,
+.form-select:focus {
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.form-select {
+    appearance: none;
+    background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%233B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-down"%3E%3Cpath d="M6 9l6 6 6-6"%3E%3C/path%3E%3C/svg%3E');
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    width: 98%;
+    cursor: pointer;
+}
+
+.form-submit-btn {
+    width: 100%;
+    background-color: #2563EB;
+    color: white;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+    font-weight: bold;
+    margin-top: 20px;
+}
+
+.form-submit-btn:hover {
+    background-color: #1D4ED8;
+    transform: translateY(-2px);
+}
+
+@media (max-width: 600px) {
+    .error-card {
+        font-size: 14px;
+        padding: 12px;
+    }
+
+    .form-card {
+        padding: 20px;
+        max-width: 100%;
+        margin: 0 10px;
+    }
+
+    .form-title {
+        font-size: 20px;
+        margin-bottom: 15px;
+    }
+
+    .form-label {
+        font-size: 12px;
+    }
+
+    .form-input,
+    .form-select {
+        font-size: 12px;
+        padding: 8px;
+    }
+
+    .form-submit-btn {
+        padding: 10px;
+        font-size: 14px;
+    }
+}
+
+/* Flash Messages */
+.flash-container {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin: 62px 1px 0px 8px;
+    width:100%;
+    padding-left: 92px;
+    }
+
+.flash-messages {
+    list-style-type: none;
+    height: 30px;
+    text-align: center;
+    margin:0;
+    padding:0;
+    }
+
+.flash-message.error {
+    background-color: rgb(255, 247, 241);
+    color: red;
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    max-width: 90%;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.flash-message.success {
+    background-color: rgb(224, 255, 224);
+    color: green;
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    max-width: 90%;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding-left:92px
+}
+
+.error-message {
+    display: block;
+    font-size: 13px;
+    margin-left: 24px;
+    color: red;
+    margin-top: -14px;
+    margin-bottom: 10px;
+}

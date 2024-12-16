@@ -1,0 +1,172 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(90deg, #00c6ff, #2c3fab);
+    padding: 20px;
+    color: white;
+    border-radius: 8px;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+}
+
+.logo {
+    height: 47px;
+    margin-right: 20px;
+}
+
+.title-container {
+    flex-grow: 1;
+}
+
+.title {
+    font-size: 1.5em;
+    font-weight: 600;
+}
+
+.search-container {
+    display: flex;
+    align-items: center;
+    padding: 1px;
+}
+
+.search-bar {
+    display: none;
+    margin-right: 10px;
+    padding: 5px;
+    border-radius: 5px;
+    width: 200px;
+}
+
+.icon-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.icon-img {
+    height: 24px;
+}
+
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+    padding: 20px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    padding: 0;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+    border: 1px solid #ddd;
+}
+
+.table thead {
+    background-color: #1E40AF;
+    color: white;
+    text-align: left;
+    border-bottom: 2px solid #ddd;
+}
+
+.table th {
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.table tbody tr:hover {
+    background-color: #f1f1f1;
+}
+
+.table td {
+    padding: 12px;
+    text-align: left;
+    font-size: 14px;
+    border-bottom: 1px solid #ddd; /* Border for each row */
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .table {
+        font-size: 12px;
+    }
+
+    .table th, .table td {
+        padding: 10px;
+    }
+}
+
+/* Icon Button Styling */
+.icon-button {
+    position: relative;
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin: 0 10px;
+    padding: 10px;
+    transition: transform 0.3s ease;
+}
+
+.icon-img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    transition: transform 0.3s ease;
+}
+
+.icon-button:hover::after {
+    content: attr(data-tooltip); 
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.75);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    white-space: nowrap;
+    z-index: 10;
+    opacity: 0;
+    visibility: hidden; 
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+
+.icon-button:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+
+.icon-button:hover {
+    transform: scale(1.1); 
+}
+
+
+.icon-button:active {
+    transform: scale(0.98); 
+}

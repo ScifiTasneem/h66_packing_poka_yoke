@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Honing Machines Metadata</title>
+    <script src="{{ url_for('static', filename='jquery-3.6.0.min.js')}}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='packing_scan.css') }}">
+     <link rel="icon" href="{{url_for('static', filename='images/favicon.png')}}">
+    <style>
+        header {
+            background: linear-gradient(90deg, #00c6ff, #0072ff);
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            padding-left: 16px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+        }
+
+        @media (max-width: 768px) {
+            header {
+                padding: 5vh 2vw;
+                font-size: 4vw;
+        }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo-container">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo 1">
+            <img src="{{ url_for('static', filename='images/logo copy.png') }}" alt="Logo 2">
+            <span class="heading-name">H66 Line Packing Station</span>
+        </div>
+
+        <div class="search-container">
+
+            <button class="icon-button" onclick="window.location.href='/packing_summary';" title="Go to Packing Summary">
+                <img src="{{ url_for('static', filename='images/add.png') }}" alt="Add New Dresser" class="icon-img">
+            </button>
+
+            <button class="icon-button" onclick="window.location.href='/logout';" title="Logout">
+                <img src="{{ url_for('static', filename='images/logout.png') }}" alt="Logout" class="icon-img">
+            </button>
+                </div>
+    </header>
+
+    <div class="flex-center">
+        <div class="container bg-white">
+
+            <!-- <h1 class="page-title"></h1> -->
+            <h1 class="subtitle" id="message">No Messages Exist!</h1>
+
+            <div class="content-grid">
+
+                <div class="machine-card bg-light">
+                    <div class="info">
+                        <label for="box_id">Box ID: <span id="box_id" class="highlight">{{ box_id }}</span></label>
+                        <button data-box-id="{{ box_id }}" class="delete-btn" onclick="deletebBoxid(this);">Delete</button>
+                    </div>
+
+                    <div class="info">
+                        <p>Rev No: <span class="highlight">{{ rev_no }}</span></p>
+                    </div>
+                    <div class="info">
+                        <p>Box Category: <span class="highlight">{{ group_type }}</span></p>
+                </div>
+                    <div class="info">
+                        <p>Qty: <span class="highlight" id="total_count"></span> <span class="highlight"> /228</span> </p>
+                </div>
+                    <div class="info">
+                        <p>Operator Name: <span class="highlight">{{ operator_name }}</span></p>
+                </div>
+
+                    <!-- Centered Save Button -->
+                    <form method="post" action="/save">
+                        <div class="button-container">
+                            <input class="save-btn" type="submit" value="Save">
+                        </div>
+                    </form>
+
+
+                    <h3 class="section-title">Part Details:</h3>
+                    <table class="data-table" id="pallet-table">
+                    <thead>
+                        <tr class="table-header">
+                                <th>Time Stamp</th>
+                                <th>Part No.</th>
+                                <th>Honing Type</th>
+                                <th>Junkar Machine</th>
+                                <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                            {% for row in part_data %}
+                        <tr class="table-row">
+                                    <td>{{ row['date_time'] }}</td>
+                                    <td>{{ row['part_id'] }}</td>
+                                    <td>{{ row['honing_type'] }}</td>
+                                    <td>{{ row['od_machine'] }}</td>
+                                    <td>
+                                <button data-part-id="{{ row['part_id'] }}" onclick="confirmDeletion(this);" class="delete-btn">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+        <div id="error-overlay" class="error-overlay hidden">
+            <div class="error-card">
+                <p id="error-message"></p>
+                <button onclick="closeErrorOverlay()" class="ok-btn">OK</button>
+            </div>
+        </div>
+    </div>
+<script>
+    function confirmDeletion(element) {
+    var partId = element.getAttribute('data-part-id');
+    if (confirm('Are you sure you want to delete this part?')) {
+        fetch('/delete-part', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ part_id: partId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if(data.success) {
+                var row = element.closest('tr');
+                row.remove();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => alert('Failed to delete the part: ' + error));
+    }
+}
+
+ function deletebBoxid(element) {
+    var boxId = element.getAttribute('data-box-id');
+        if (confirm('Are you sure you want to delete this part?')) {
+            fetch('/delete-box', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ box_id: boxId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.success) {
+                    location.reload()
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => alert('Failed to delete the part: ' + error));
+        }
+ }
+
+
+  $(document).ready(function () {
+        var previousTimestamp = '';
+        var saveBtn = document.getElementById("saveBtn");
+
+        function appendRow(timestamp, part_id, honing_type, od_machine) {
+            var newRow = '<tr><td>' + timestamp + '</td><td>' + part_id + '</td><td>' +  honing_type + '</td><td>' +  od_machine  + '</td><td>' + '<button data-part-id="' + part_id + '" class="delete-btn" onclick="confirmDeletion(this);">Delete</button></td>' + '</tr>';
+            $('#pallet-table tbody').prepend(newRow);
+        }
+
+    function fetchData() {
+            $.ajax({
+                url: '/data_part',
+                dataType: 'json',
+                success: function (response) {
+                if (response && response.length > 0) {
+                    var timestamp = response[0].DATE_TIME;
+                    var part_id = response[0].PART_ID;
+                    var honing_type = response[0].honing_type;
+                    var box_id = response[0].BOX_ID;
+                    var count = response[0].total_part_count;
+                    var od_machine = response[0].od_machine;
+
+                    console.log(timestamp, part_id, honing_type, box_id, count, od_machine);
+
+                    if (timestamp !== previousTimestamp) {
+                        appendRow(timestamp, part_id, honing_type, od_machine);
+                        previousTimestamp = timestamp;
+                }
+
+                    $('#box_count').text(count);
+                    $('#box_id').text(box_id);
+                    $('#total_count').text(count);
+
+                } else {
+                    console.log("No data received from the server.");
+                }
+                },
+                error: function (error) {
+                    console.log('Error:', error);
+                }
+            });
+        }
+
+        fetchData();
+        setInterval(fetchData, 1000);
+    });
+
+    // Real Time Messages
+    $(document).ready(function() {
+        function updateMessage() {
+            $.ajax({
+                url: '/message',
+                dataType: 'json',
+                success: function(msg_response) {
+                    if (msg_response.length > 0 && msg_response[0].message) {
+                        var msg = msg_response[0].message;
+                        var msg_type = msg_response[0].type;
+                        console.log(msg, msg_type);
+                        $('#message').text(msg);
+
+                        if (msg_type == 'error') {
+                            $('#message').css('color', 'red');
+                            showErrorOverlay(msg);
+                        } else if (msg_type == 'success') {
+                            $('#message').css('color', 'green');
+                        } else {
+                            $('#message').css('color', 'black');
+                        }
+                    } else {
+                        $('#message').text(msg);
+                    }
+                },
+                error: function(error) {
+                    console.log('Error:', error);
+                }
+            });
+        }
+        setInterval(updateMessage, 1000);
+    });
+
+    function showErrorOverlay(errorMessage) {
+        $('#error-message').text(errorMessage);
+        $('#error-overlay').removeClass('hidden');
+    }
+
+    function closeErrorOverlay() {
+        $('#error-overlay').addClass('hidden');
+    }
+
+        // Function for manual dresser id
+    function editDresser(button) {
+        document.getElementById("box_id").style.display = "none";
+        button.style.display = "none";
+
+        document.getElementById("box_input").style.display = "inline";
+        document.getElementById("save-btn").style.display = "inline";
+    }
+
+    function saveDresser() {
+        const updatedboxId = document.getElementById("box_input").value;
+        console.log(updatedboxId)
+
+        // Send the updated Dresser ID to the backend
+        try {
+            const response = fetch('/manual_box_id', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ packing_box_id: updatedboxId })
+            });
+
+            const result = response.json();
+
+            if (result.success) {
+                document.getElementById("box_id").textContent = updatedDresserId;
+                document.getElementById("box_input").style.display = "none";
+                document.getElementById("save-btn").style.display = "none";
+                document.getElementById("box_id").style.display = "inline";
+                document.querySelector(".edit-btn").style.display = "inline";
+                alert('Dresser ID updated successfully!');
+            } else {
+                alert('Failed to update Dresser ID.');
+            }
+        } catch (error) {
+            console.error('Error updating Dresser ID:', error);
+        }
+    }
+</script>
+</body>
+</html>

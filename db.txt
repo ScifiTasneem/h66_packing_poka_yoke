@@ -1,0 +1,14 @@
+CREATE TABLE H66_PACKING_MASTER
+(date_time datetime,
+box_id VARCHAR(100) PRIMARY KEY,
+part_qty int,
+rev_no varchar(10),
+group_type varchar(10),
+operator_name varchar(50),
+status int)
+
+CREATE TABLE H66_PACKING_PART_MASTER 
+(date_time datetime, part_id varchar(100), 
+box_id varchar(100) FOREIGN KEY REFERENCES H66_PACKING_MASTER(box_id), 
+honing_type varchar(10),
+od_machine varchar(10))
