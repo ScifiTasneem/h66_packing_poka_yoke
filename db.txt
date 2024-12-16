@@ -8,7 +8,12 @@ operator_name varchar(50),
 status int)
 
 CREATE TABLE H66_PACKING_PART_MASTER 
-(date_time datetime, part_id varchar(100), 
+(date_time datetime,
+part_id varchar(100),
 box_id varchar(100) FOREIGN KEY REFERENCES H66_PACKING_MASTER(box_id), 
 honing_type varchar(10),
 od_machine varchar(10))
+
+CREATE TABLE [dbo].[H66_OD_MACHINE_PART_MASTER](
+	[date_time] [datetime] NOT NULL,
+	[junkar_part_id] [varchar](100) NOT NULL)
