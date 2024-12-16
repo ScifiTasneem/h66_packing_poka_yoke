@@ -18,3 +18,4 @@ H66_PACKING_PART_MASTER
 * example.ini: settings for the application
 * query.sql: the packed box query for the template
 
+"# h66_packing_poka_yoke" 
