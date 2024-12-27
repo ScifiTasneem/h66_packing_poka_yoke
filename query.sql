@@ -37,7 +37,21 @@ SELECT
         ELSE 'REJECT'
     END AS Multiguage_Status,
 	-- honing type
-	honing_type,
+	    -- Honing Type with Dresser ID
+    CASE 
+        WHEN honing_type IS NOT NULL THEN 
+            CASE
+                WHEN honing_type = 'Honing 1' THEN 'Honing 1_'
+                WHEN honing_type = 'Honing 2' THEN 'Honing 2_'
+                ELSE 'Honing Unknown_'
+            END +
+            (
+                SELECT TOP 1 dresser_id 
+                FROM [PACKING_POKA_YOKE].[dbo].[HONING_PART_MASTER] 
+                WHERE HONING_PART_MASTER.part_id = PartMaster.part_id
+            )
+        ELSE NULL
+    END AS Honing_Type_With_Dresser,
 	-- junker type
     od_machine,
     -- GRT Scanning Time (Time_Stamp)
@@ -97,7 +111,7 @@ SELECT
             ORDER BY Time_Stamp DESC
         )
         ELSE NULL
-    END AS D3,
+    END AS GRT_D3,
     -- GRT D5 from both tables
     CASE 
         WHEN EXISTS (
@@ -127,7 +141,7 @@ SELECT
             ORDER BY Time_Stamp DESC
         )
         ELSE NULL
-    END AS D5,
+    END AS GRT_D5,
     -- GRT D6 from both tables
     CASE 
         WHEN EXISTS (
@@ -157,7 +171,7 @@ SELECT
             ORDER BY Time_Stamp DESC
         )
         ELSE NULL
-    END AS D6,
+    END AS GRT_D6,
     -- GRT D7 from both tables
     CASE 
         WHEN EXISTS (
@@ -187,7 +201,7 @@ SELECT
             ORDER BY Time_Stamp DESC
         )
         ELSE NULL
-    END AS D7,
+    END AS GRT_D7,
     -- GRT D8 from both tables
     CASE 
         WHEN EXISTS (
@@ -217,7 +231,7 @@ SELECT
             ORDER BY Time_Stamp DESC
         )
         ELSE NULL
-    END AS D8,
+    END AS GRT_D8,
     -- GRT D9 from both tables
     CASE 
         WHEN EXISTS (
@@ -247,7 +261,7 @@ SELECT
             ORDER BY Time_Stamp DESC
         )
         ELSE NULL
-    END AS D9,
+    END AS GRT_D9,
 	-- Multigauging Scanning Time (Time_Stamp)
     CASE 
         WHEN EXISTS (

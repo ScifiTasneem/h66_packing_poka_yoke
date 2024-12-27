@@ -19,7 +19,7 @@
    }
    
    .container {
-       max-width: 920px;
+       max-width: fit-content;
        margin: 40px auto;
        background: #7c8f990d;
        padding: 20px;
@@ -317,7 +317,7 @@
                 <th>GRT Status</th>
                 <th>Multiguage Status</th>
                 <th>Honing M/C</th>
-                <th>OD Grinding M/C</th>
+                <th>Junker M/C</th>
                 <th>GRT Scanning Time</th>
                 <th>F09 E Max OD 24.980 mm</th>
                 <th>F09 E Min OD 24.980 mm</th>
@@ -384,7 +384,7 @@
                 <td>24.9900</td>
                 <td>8.0430</td>
                 <td>8.0430</td>
-                <td>0.0150</td>
+                <td>0.0140</td>
                 <td>0.0060</td>
                 <td></td>
                 <td>22.0930</td>
@@ -401,12 +401,12 @@
                 <td>0.0150</td>
                 <td>0.0150</td>
                 <td>156.4500</td>
-                <td>133.9990</td>
+                <td>134.0000</td>
                 <td>62.5000</td>
                 <td>55.750</td>
                 <td>0.0200</td>
                 <td>0.0200</td>
-                <td>218.9300</td>
+                <td>218.9500</td>
 
 
             </tr>
@@ -422,9 +422,9 @@
 
                 <td>24.9850</td>
                 <td>24.9850</td>
+                <td>8.0403</td>
                 <td>8.0408</td>
-                <td>8.0408</td>
-                <td>0.0113</td>
+                <td>0.0105</td>
                 <td>0.0045</td>
                 <td></td>
                 <td>22.0908</td>
@@ -440,12 +440,12 @@
                 <td>0.0113</td>
                 <td>0.0113</td>
                 <td>156.4000</td>
-                <td>133.9495</td>
+                <td>133.9500</td>
                 <td>62.4000</td>
                 <td>55.7250</td>
                 <td>0.0150</td>
                 <td>0.0150</td>
-                <td>218.7900</td>
+                <td>218.8000</td>
 
             </tr>
             <tr class="border">
@@ -458,10 +458,10 @@
                 <td></td>
                 <td>24.9750</td>
                 <td>24.9750</td>
-                <td>8.0363</td>
+                <td>8.0348</td>
              
                 <td>8.0363</td>
-                <td>0.0038</td>
+                <td>0.0035</td>
                 <td>0.0015</td>
                 <td></td>
                 <td>22.0863</td>
@@ -477,12 +477,12 @@
                 <td>0.0038</td>
                 <td>0.0038</td>
                 <td>156.3000</td>
-                <td>133.8505</td>
+                <td>133.8500</td>
                 <td>62.2000</td>
                 <td>55.6750</td>
                 <td>0.0050</td>
                 <td>0.0050</td>
-                <td>218.5100</td>
+                <td>218.5000</td>
             </tr>
             <tr class="border">
                 <th class="sticky-col">LTL</th>
@@ -494,7 +494,7 @@
                 <td></td>
                 <td>24.9700</td>
                 <td>24.9700</td>
-                <td>8.0340</td>
+                <td>8.0320</td>
                 <td>8.0340</td>
                 <td>0.0000</td>
                 <td>0.0000</td>
@@ -513,12 +513,12 @@
                 <td>0.0000</td>
                 <td>0.0000</td>
                 <td>156.2500</td>
-                <td>133.8010</td>
+                <td>133.8000</td>
                 <td>62.1000</td>
                 <td>55.6500</td>
                 <td>0.0000</td>
                 <td>0.0000</td>
-                <td>218.3700</td>
+                <td>218.3500</td>
              
             </tr>
              {% for row in part_master %}
@@ -528,15 +528,15 @@
                 <td class="part-no sticky-col" >{{ row['part_id'] }}</td>
                 <td>{{ row['GRT_Status'] }}</td>
                 <td>{{ row['Multiguage_Status'] }}</td>
-                <td>{{ row['honing_type'] }}</td>
+                <td>{{ row['Honing_Type_With_Dresser'] }}</td>
                 <td>{{ row['od_machine'] }}</td>
                 <td>{{ row['GRT_Scanning_Time'] }}</td>
-                <td>{{ row['D3'] }}</td>
-                <td>{{ row['D5'] }}</td>
-                <td>{{ row['D6'] }}</td>
-                <td>{{ row['D7'] }}</td>
-                <td>{{ row['D8'] }}</td>
-                <td>{{ row['D9'] }}</td>
+                <td>{{ row['GRT_D3'] }}</td>
+                <td>{{ row['GRT_D5'] }}</td>
+                <td>{{ row['GRT_D6'] }}</td>
+                <td>{{ row['GRT_D7'] }}</td>
+                <td>{{ row['GRT_D8'] }}</td>
+                <td>{{ row['GRT_D9'] }}</td>
                 <td>{{ row['Multigauging_Scanning_Time'] }}</td>
                 <td>{{ row['D1'] }}</td>
                 <td>{{ row['D2'] }}</td>
