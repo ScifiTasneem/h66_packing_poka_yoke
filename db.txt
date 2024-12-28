@@ -9,7 +9,7 @@ status int)
 
 CREATE TABLE H66_PACKING_PART_MASTER 
 (date_time datetime,
-part_id varchar(100),
+part_id varchar(100) PRIMARY KEY,
 box_id varchar(100) FOREIGN KEY REFERENCES H66_PACKING_MASTER(box_id), 
 honing_type varchar(10),
 od_machine varchar(10))
