@@ -562,9 +562,7 @@ async def packing_scan():
                                 "message": "Please scan Box ID before scanning part OR Box ID is not in proper format",
                             }
                         )
-                        logging.info(
-                            "Please scan Box ID before scanning part OR Box ID is not in proper format"
-                        )
+                        logging.info("Please scan Box ID before scanning part OR Box ID is not in proper format")
 
                     elif (
                         serial_read.startswith(part_starts)
@@ -579,7 +577,7 @@ async def packing_scan():
                         H66_1_MULTIGAUGING = await status_H66_1_MULTIGAUGING(part_id)
                         H66_2_GRT = await status_H66_2_GRT(part_id)
                         H66_2_MULTIGAUGING = await status_H66_2_MULTIGAUGING(part_id)
-                        honing_type = await get_honing_type(part_id)
+                        honing_type, dresser_id = await get_honing_type(part_id)
 
                         print(
                             f"H66_1_GRT: {H66_1_GRT}, H66_2_GRT: {H66_2_GRT}, M_1: {H66_1_MULTIGAUGING}, M_2: {H66_2_MULTIGAUGING}"
@@ -613,10 +611,11 @@ async def packing_scan():
                                 current_datetime_part = datetime.now().strftime(
                                     "%Y-%m-%d %H:%M:%S"
                                 )
-                                insert_query = (
-                                    f"INSERT INTO H66_PACKING_PART_MASTER (part_id, box_id, date_time, honing_type, od_machine) "
-                                    f"VALUES ('{part_id}', '{box_id}', '{current_datetime_part}', '{honing_type}', '{zunkar_bool}') "
-                                )
+                                insert_query = f"""INSERT INTO H66_PACKING_PART_MASTER 
+                                    (part_id, box_id, date_time, honing_type, honing_dresser_id, od_machine) 
+                                    VALUES ('{part_id}', '{box_id}', '{current_datetime_part}', 
+                                    '{honing_type}', '{dresser_id}','{zunkar_bool}') """
+
                                 await db_conn_commit(insert_query)
                                 print(f"The Part ID {part_id} accepted and saved")
                                 messages.append(
@@ -625,9 +624,7 @@ async def packing_scan():
                                         "message": f"The Part ID {part_id} accepted and saved",
                                     }
                                 )
-                                logging.info(
-                                    f"The Part ID {part_id} accepted and saved"
-                                )
+                            logging.info(f"The Part ID {part_id} accepted and saved")
                         elif (
                             H66_1_GRT is None
                             and H66_2_GRT is None
@@ -636,7 +633,7 @@ async def packing_scan():
                             and multi_set == "True"
                         ):
                             print(
-                                f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage"
+                            f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage"
                             )
                             messages.append(
                                 {
@@ -644,12 +641,11 @@ async def packing_scan():
                                     "message": f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage",
                                 }
                             )
-                            logging.info(
-                                f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage"
-                            )
+                            logging.info(f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage")
+
                         elif (
-                            check_group_type_multiguage is None and multi_set == "True"
-                        ):
+                                check_group_type_multiguage is None
+                                and multi_set == "True"):
                             print("No group type has been identified")
                             messages.append(
                                 {
@@ -858,8 +854,10 @@ async def packing_scan():
 
                             zunkar_bool = await junkar_part_check(part_id)
                             insert_query = (
-                                f"INSERT INTO H66_PACKING_PART_MASTER (part_id, box_id, date_time, honing_type, od_machine) "
-                                f"VALUES ('{part_id}', '{box_id}', '{current_datetime_part}', '{honing_type}', '{zunkar_bool}') "
+                                f"""INSERT INTO H66_PACKING_PART_MASTER 
+                                (part_id, box_id, date_time, honing_type, honing_dresser_id, od_machine) 
+                                VALUES ('{part_id}', '{box_id}', '{current_datetime_part}',
+                                 '{honing_type}', '{dresser_id}', '{zunkar_bool}') """
                             )
                             await db_conn_commit(insert_query)
                             print(f"The Part ID {part_id} accepted and saved")
@@ -1174,8 +1172,8 @@ async def save():
         part_count_sql = f"""SELECT 
                         (SELECT COUNT(part_id) FROM H66_PACKING_PART_MASTER WHERE box_id = '{box_id}') AS total_count, 
                         part_id, honing_type, od_machine, honing_dresser_id
-                    FROM H66_PACKING_PART_MASTER
-                    WHERE box_id = '{box_id}'"""
+                        FROM H66_PACKING_PART_MASTER
+                        WHERE box_id = '{box_id}'"""
 
         part_count_res = await db_conn_all(part_count_sql)
 
