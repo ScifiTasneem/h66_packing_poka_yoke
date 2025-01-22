@@ -24,6 +24,7 @@ import os
 from aiofiles import open as aio_open
 import aiosmtplib
 import configparser
+import socket
 
 logging.basicConfig(
     filename="h66_packing_app.log",
@@ -60,6 +61,7 @@ db = config_data["database_details"]
 # scanner configurations
 scan = config_data["scanner"]
 com_port = scan["com_port"]
+port = scan["port"]
 print(com_port)
 
 # box_settings
@@ -78,11 +80,16 @@ multi_set = multi_admin["m_setting"]
 
 # group type setting
 set_group_type = config_data["group_type"]
-a_lower = set_group_type["A_lower"]
-a_upper = set_group_type["A_upper"]
-b_lower = set_group_type["B_lower"]
-b_upper = set_group_type["B_upper"]
-c_upper = set_group_type["C_upper"]
+d8_a_lower = set_group_type["d8_A_lower"]
+d8_a_upper = set_group_type["d8_A_upper"]
+d8_b_lower = set_group_type["d8_B_lower"]
+d8_b_upper = set_group_type["d8_B_upper"]
+d8_c_upper = set_group_type["d8_C_upper"]
+d9_a_lower = set_group_type["d9_A_lower"]
+d9_a_upper = set_group_type["d9_A_upper"]
+d9_b_lower = set_group_type["d9_B_lower"]
+d9_b_upper = set_group_type["d9_B_upper"]
+d9_c_upper = set_group_type["d9_C_upper"]
 
 try:
     ser = serial.Serial(com_port, baudrate=9600, timeout=1)
@@ -206,7 +213,11 @@ async def get_honing_type(part_id):
         WHERE part_id = '{part_id}'
         ORDER BY date_time DESC"""
     result = await db_conn_all(honing_check)
-    return result[0][0], result[0][1] if result else None
+
+    if result:
+        return result[0][0], result[0][1]
+    else:
+        return None, None
 
 
 async def junkar_part_check(part_id):
@@ -218,12 +229,12 @@ async def junkar_part_check(part_id):
 
 
 async def group_type_check(part_id):
-    check_grt_1_sql = f"""SELECT TOP 1 D8 FROM [24M1570200_H66_1_GRT] 
+    check_grt_1_sql = f"""SELECT TOP 1 D8, D9 FROM [24M1570200_H66_1_GRT] 
                         WHERE part_nbr = '{part_id}' ORDER BY Time_Stamp DESC"""
     check_grt_1 = await db_conn_one(check_grt_1_sql)
 
     if check_grt_1 is None:
-        check_grt_2_sql = f"""SELECT TOP 1 D8 FROM [24M1570100_H66_2_GRT]
+        check_grt_2_sql = f"""SELECT TOP 1 D8, D9 FROM [24M1570100_H66_2_GRT]
                           WHERE part_nbr = '{part_id}' ORDER BY Time_Stamp DESC"""
         check_grt_2 = await db_conn_one(check_grt_2_sql)
 
@@ -231,19 +242,23 @@ async def group_type_check(part_id):
             return None
         else:
             d8_grt_2 = float(check_grt_2[0])
-            if float(a_lower) <= d8_grt_2 <= float(a_upper):
+            d9_grt_1 = float(check_grt_2[1])
+            if float(d8_a_lower) <= d8_grt_2 <= float(d8_a_upper) and float(d9_a_lower) <= d9_grt_1 <= float(
+                    d9_a_upper):
                 return "A"
-            elif float(b_lower) <= d8_grt_2 <= float(b_upper):
+            elif float(d8_b_lower) <= d8_grt_2 <= float(d8_b_upper) and float(d9_b_lower) <= d9_grt_1 <= float(
+                    d9_b_upper):
                 return "B"
-            elif d8_grt_2 >= float(c_upper):
+            elif d8_grt_2 >= float(d8_c_upper) and d9_grt_1 >= float(d8_c_upper):
                 return "C"
     else:
         d8_grt_1 = float(check_grt_1[0])
-        if float(a_lower) <= d8_grt_1 <= float(a_upper):
+        d9_grt_1 = float(check_grt_1[1])
+        if float(d8_a_lower) <= d8_grt_1 <= float(d8_a_upper) and float(d9_a_lower) <= d9_grt_1 <= float(d9_a_upper):
             return "A"
-        elif float(b_lower) <= d8_grt_1 <= float(b_upper):
+        elif float(d8_b_lower) <= d8_grt_1 <= float(d8_b_upper) and float(d9_b_lower) <= d9_grt_1 <= float(d9_b_upper):
             return "B"
-        elif d8_grt_1 >= float(c_upper):
+        elif d8_grt_1 >= float(d8_c_upper) and d9_grt_1 >= float(d8_c_upper):
             return "C"
 
 
@@ -265,10 +280,11 @@ async def login():
 
         box_redirect_query = """
             SELECT TOP 1 box_id, status, group_type
-            FROM H66_PACKING_MASTER ORDER BY date_time DESC
+            FROM H66_PACKING_MASTER
+            WHERE STATUS is null
+            ORDER BY date_time DESC
         """
         box_redirect_list = await db_conn_one(box_redirect_query)
-        print(box_redirect_list)
 
         def box_redirect():
             if box_redirect_list:
@@ -292,8 +308,7 @@ async def login():
         elif authenticate(username, password) and should_redirect is True:
             session["username"] = username
             return redirect(
-                url_for("packing_scan", box_id=box_id, group_type=group_type)
-            )
+                url_for("packing_scan", box_id=box_id, group_type=group_type))
         else:
             return redirect(url_for("login"))
     return await render_template("login.html")
@@ -403,8 +418,11 @@ async def packing_selection():
 
 @app.route("/packing_summary")
 @login_required
-async def dresser_summary():
-    packing_master = "SELECT * FROM H66_PACKING_MASTER ORDER BY date_time DESC"
+async def packing_summary():
+    packing_master = """SELECT date_time, box_id, rev_no, group_type, operator_name
+                     FROM H66_PACKING_MASTER 
+                     WHERE status = '1'
+                     ORDER BY date_time DESC"""
     packing_master_data = await db_conn_all(packing_master)
     return await render_template("packing_summary.html", data=packing_master_data)
 
@@ -484,7 +502,6 @@ async def packing_scan():
         while True:
             box_id = None
 
-            # serial_read = input('Enter the value you want')
             if ser.in_waiting:
                 serial_read = ser.readline().strip().decode("utf-8")
                 print(f"Received Data:{serial_read}; {len(serial_read)}")
@@ -501,8 +518,8 @@ async def packing_scan():
                 part_counter = await count_part_dual_motor(box_id)
                 if part_counter < 228:
                     if (
-                        serial_read.startswith(box_start)
-                        and len(serial_read) == box_len
+                            serial_read.startswith(box_start)
+                            and len(serial_read) == box_len
                     ):
                         box_id = serial_read
                         top_box_sql = f"SELECT 1 FROM H66_PACKING_MASTER WHERE box_id = '{box_id}'"
@@ -565,8 +582,8 @@ async def packing_scan():
                         logging.info("Please scan Box ID before scanning part OR Box ID is not in proper format")
 
                     elif (
-                        serial_read.startswith(part_starts)
-                        and len(serial_read) == part_len
+                            serial_read.startswith(part_starts)
+                            and len(serial_read) == part_len
                     ):
                         part_id = serial_read
                         part_sql = f"SELECT 1 FROM H66_PACKING_PART_MASTER WHERE part_id = '{part_id}'"
@@ -604,8 +621,8 @@ async def packing_scan():
                                 )
                                 logging.info("Please scan on Honing Machine First")
                             elif (
-                                H66_1_MULTIGAUGING == "ACCEPT"
-                                or H66_2_MULTIGAUGING == "ACCEPT"
+                                    H66_1_MULTIGAUGING == "ACCEPT"
+                                    or H66_2_MULTIGAUGING == "ACCEPT"
                             ):
                                 zunkar_bool = await junkar_part_check(part_id)
                                 current_datetime_part = datetime.now().strftime(
@@ -624,16 +641,25 @@ async def packing_scan():
                                         "message": f"The Part ID {part_id} accepted and saved",
                                     }
                                 )
-                            logging.info(f"The Part ID {part_id} accepted and saved")
+                                logging.info(f"The Part ID {part_id} accepted and saved")
+                        elif honing_type is None:
+                            print("Please scan on Honing Machine First")
+                            messages.append(
+                                {
+                                    "type": "error",
+                                    "message": "Please scan on Honing Machine First",
+                                }
+                            )
+                            logging.info("Please scan on Honing Machine First")
                         elif (
-                            H66_1_GRT is None
-                            and H66_2_GRT is None
-                            and H66_1_MULTIGAUGING is None
-                            and H66_2_MULTIGAUGING is None
-                            and multi_set == "True"
+                                H66_1_GRT is None
+                                and H66_2_GRT is None
+                                and H66_1_MULTIGAUGING is None
+                                and H66_2_MULTIGAUGING is None
+                                and multi_set == "True"
                         ):
                             print(
-                            f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage"
+                                f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage"
                             )
                             messages.append(
                                 {
@@ -641,7 +667,8 @@ async def packing_scan():
                                     "message": f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage",
                                 }
                             )
-                            logging.info(f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage")
+                            logging.info(
+                                f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage")
 
                         elif (
                                 check_group_type_multiguage is None
@@ -655,8 +682,8 @@ async def packing_scan():
                             )
                             logging.info("No group type has been identified")
                         elif (
-                            check_group_type_multiguage != group_type
-                            and multi_set == "True"
+                                check_group_type_multiguage != group_type
+                                and multi_set == "True"
                         ):
                             print(
                                 f"Group Type is '{group_type}' but '{check_group_type_multiguage}' has been scanned"
@@ -671,9 +698,9 @@ async def packing_scan():
                                 f"Group Type is '{group_type}' but '{check_group_type_multiguage}' has been scanned"
                             )
                         elif (
-                            H66_1_GRT is None
-                            and H66_2_GRT is None
-                            and multi_set == "True"
+                                H66_1_GRT is None
+                                and H66_2_GRT is None
+                                and multi_set == "True"
                         ):
                             print(
                                 f"Pending status on H66_1_GRT or H66_2_GRT for Part id {part_id}"
@@ -688,9 +715,9 @@ async def packing_scan():
                                 f"Pending status in H66_1_GRT for Part id {part_id}"
                             )
                         elif (
-                            H66_1_MULTIGAUGING is None
-                            and H66_2_MULTIGAUGING is None
-                            and multi_set == "True"
+                                H66_1_MULTIGAUGING is None
+                                and H66_2_MULTIGAUGING is None
+                                and multi_set == "True"
                         ):
                             print(
                                 f"Pending status in H66_1_MULTIGAUGING or H66_2_MULTIGAUGING for Part id {part_id}"
@@ -714,8 +741,8 @@ async def packing_scan():
                             )
                             logging.info(f"Part id {part_id} is rejected on both GRTs")
                         elif (
-                            H66_1_MULTIGAUGING == "REJECT"
-                            and H66_2_MULTIGAUGING == "REJECT"
+                                H66_1_MULTIGAUGING == "REJECT"
+                                and H66_2_MULTIGAUGING == "REJECT"
                         ):
                             print(f"Part id {part_id} is rejected on both multigauges")
                             messages.append(
@@ -728,8 +755,8 @@ async def packing_scan():
                                 f"Part id {part_id} is rejected on both multigauges"
                             )
                         elif (H66_1_GRT == "REJECT" and H66_2_GRT == "REJECT") and (
-                            H66_1_MULTIGAUGING == "REJECT"
-                            and H66_2_MULTIGAUGING == "REJECT"
+                                H66_1_MULTIGAUGING == "REJECT"
+                                and H66_2_MULTIGAUGING == "REJECT"
                         ):
                             print(
                                 f"Part ID {part_id} is rejected on both GRTs and both multigauges"
@@ -744,8 +771,8 @@ async def packing_scan():
                                 f"Part ID {part_id} is rejected on both GRTs and both multigauges"
                             )
                         elif (H66_1_GRT is None and H66_2_GRT == "ACCEPT") and (
-                            H66_1_MULTIGAUGING is None
-                            and H66_2_MULTIGAUGING == "REJECT"
+                                H66_1_MULTIGAUGING is None
+                                and H66_2_MULTIGAUGING == "REJECT"
                         ):
                             print(f"Part ID {part_id} is rejected on H66_2_MULTIGUAGE")
                             messages.append(
@@ -758,8 +785,8 @@ async def packing_scan():
                                 f"Part ID {part_id} is rejected on H66_2_MULTIGUAGE"
                             )
                         elif (H66_1_GRT is None and H66_2_GRT == "REJECT") and (
-                            H66_1_MULTIGAUGING is None
-                            and H66_2_MULTIGAUGING == "ACCEPT"
+                                H66_1_MULTIGAUGING is None
+                                and H66_2_MULTIGAUGING == "ACCEPT"
                         ):
                             print(f"Part ID {part_id} is rejected on H66_2_GRT")
                             messages.append(
@@ -770,8 +797,8 @@ async def packing_scan():
                             )
                             logging.info(f"Part ID {part_id} is rejected on H66_2_GRT")
                         elif (H66_1_GRT == "ACCEPT" and H66_2_GRT is None) and (
-                            H66_1_MULTIGAUGING == "REJECT"
-                            and H66_2_MULTIGAUGING is None
+                                H66_1_MULTIGAUGING == "REJECT"
+                                and H66_2_MULTIGAUGING is None
                         ):
                             print(
                                 f"Part ID {part_id} is rejected on H66_1_MULTIGUAGING"
@@ -786,8 +813,8 @@ async def packing_scan():
                                 f"Part ID {part_id} is rejected on H66_1_MULTIGUAGING"
                             )
                         elif (H66_1_GRT == "REJECT" and H66_2_GRT is None) and (
-                            H66_1_MULTIGAUGING == "ACCEPT"
-                            and H66_2_MULTIGAUGING is None
+                                H66_1_MULTIGAUGING == "ACCEPT"
+                                and H66_2_MULTIGAUGING is None
                         ):
                             print(f"Part ID {part_id} is rejected on H66_1_GRT")
                             messages.append(
@@ -798,8 +825,8 @@ async def packing_scan():
                             )
                             logging.info(f"Part ID {part_id} is rejected on H66_1_GRT")
                         elif (H66_1_GRT == "REJECT" and H66_2_GRT is None) and (
-                            H66_1_MULTIGAUGING == "REJECT"
-                            and H66_2_MULTIGAUGING is None
+                                H66_1_MULTIGAUGING == "REJECT"
+                                and H66_2_MULTIGAUGING is None
                         ):
                             print(
                                 f"Part ID {part_id} is rejected on both H66_1_GRT and H66_1_MULTIGAUGING"
@@ -814,8 +841,8 @@ async def packing_scan():
                                 f"Part ID {part_id} is rejected on both H66_1_GRT and H66_1_MULTIGAUGING"
                             )
                         elif (H66_1_GRT is None and H66_2_GRT == "REJECT") and (
-                            H66_1_MULTIGAUGING is None
-                            and H66_2_MULTIGAUGING == "REJECT"
+                                H66_1_MULTIGAUGING is None
+                                and H66_2_MULTIGAUGING == "REJECT"
                         ):
                             print(
                                 f"Part ID {part_id} is rejected on both H66_2_GRT and H66_2_MULTIGAUGING"
@@ -829,15 +856,7 @@ async def packing_scan():
                             logging.info(
                                 f"Part ID {part_id} is rejected on both H66_2_GRT and H66_2_MULTIGAUGING"
                             )
-                        elif honing_type is None:
-                            print("Please scan on Honing Machine First")
-                            messages.append(
-                                {
-                                    "type": "error",
-                                    "message": "Please scan on Honing Machine First",
-                                }
-                            )
-                            logging.info("Please scan on Honing Machine First")
+
                         else:
                             part_counter += 1
                             if part_counter == 1:
@@ -848,6 +867,7 @@ async def packing_scan():
                             else:
                                 print(part_counter)
                                 logging.info(part_counter)
+
                             current_datetime_part = datetime.now().strftime(
                                 "%Y-%m-%d %H:%M:%S"
                             )
@@ -1033,7 +1053,7 @@ async def data_part():
     else:
         rt_update_sql = f"""
                         SELECT TOP 1 part_id, box_id, date_time, honing_type, od_machine,
-                            (SELECT COUNT(*) FROM H66_PACKING_PART_MASTER WHERE box_id = PM.box_id) AS total_part_count
+                        (SELECT COUNT(*) FROM H66_PACKING_PART_MASTER WHERE box_id = PM.box_id) AS total_part_count
                         FROM H66_PACKING_PART_MASTER PM
                         WHERE box_id = '{box_id}'
                         ORDER BY date_time DESC
@@ -1066,8 +1086,29 @@ async def data_part():
         return jsonify(rt_part)
 
 
+async def save_and_open_template(data_part_master, box_id, part_qty, group_type, rev_no, operator_name, date_time):
+    html_content = await render_template(
+        "H66_template.html",
+        part_master=data_part_master,
+        box_id=box_id,
+        part_qty=part_qty,
+        group_type=group_type,
+        rev_no=rev_no,
+        operator_name=operator_name,
+        date_time=date_time,
+    )
+
+    # Create a filename using the box number
+    attachment_filename = f"{box_id}.html"
+    attachment_path = os.path.join("Packed Box", attachment_filename)
+
+    # Save the rendered template to a uniquely named file
+    async with aio_open(attachment_path, "w") as file:
+        await file.write(html_content)
+
+
 async def send_email_with_attachment(
-    data_part_master, box_id, group_type, rev_no, part_counter, operator_name, date_time
+        data_part_master, box_id, group_type, rev_no, part_counter, operator_name, date_time
 ):
     smtp_server = "exchsrv.kalyanicorp.com"
     PORT = 587
@@ -1162,6 +1203,7 @@ async def save():
     last_dresser_res = await db_conn_one(last_dresser_sql)
 
     data_part_master = []
+
     if last_dresser_res:
         box_id = last_dresser_res[0]
         rev_no = last_dresser_res[1]
@@ -1195,40 +1237,93 @@ async def save():
                 }
                 data_part_master.append(part_data)
 
-            # GRT search logic
-            search_grt_1 = f"""SELECT TOP 1 result_id, time_stamp, d3,d5,d6,d7,d8,d9 FROM [24M1570200_H66_1_GRT] 
-                                WHERE part_nbr = '{part_id}' 
-                                ORDER BY TIME_STAMP DESC"""
-            grt_1_res = await db_conn_all(search_grt_1)
+            if group_type == 'C':
+                # GRT search logic
+                search_grt_1 = f"""SELECT TOP 1 result_id, time_stamp, d3,d5,d6,d7,d8,d9 FROM [24M1570200_H66_1_GRT] 
+                                    WHERE part_nbr = '{part_id}' 
+                                    ORDER BY TIME_STAMP DESC"""
+                grt_1_res = await db_conn_all(search_grt_1)
 
-            if not grt_1_res:
-                search_grt_2 = f"""SELECT TOP 1 result_id, time_stamp, d3,d5,d6,d7,d8,d9 FROM [24M1570100_H66_2_GRT] 
-                                   where part_nbr = '{part_id}' 
-                                   ORDER BY TIME_STAMP DESC"""
-                grt_2_res = await db_conn_all(search_grt_2)
-                part_data["GRT_Status"] = grt_2_res[0][0]
-                part_data["GRT_Scanning_Time"] = grt_2_res[0][1]
-                part_data["GRT_D3"] = grt_2_res[0][2]
-                part_data["GRT_D5"] = grt_2_res[0][3]
-                part_data["GRT_D6"] = grt_2_res[0][4]
-                part_data["GRT_D7"] = grt_2_res[0][5]
-                part_data["GRT_D8"] = grt_2_res[0][6]
-                part_data["GRT_D9"] = grt_2_res[0][7]
+                if not grt_1_res:
+                    search_grt_2 = f"""SELECT TOP 1 result_id, time_stamp, d3,d5,d6,d7,d8,d9 FROM [24M1570100_H66_2_GRT] 
+                                       where part_nbr = '{part_id}' 
+                                       ORDER BY TIME_STAMP DESC"""
+                    grt_2_res = await db_conn_all(search_grt_2)
+                    if grt_2_res:
+                        part_data["GRT_Status"] = grt_2_res[0][0]
+                        part_data["GRT_Scanning_Time"] = grt_2_res[0][1]
+                        part_data["GRT_D3"] = grt_2_res[0][2]
+                        part_data["GRT_D5"] = grt_2_res[0][3]
+                        part_data["GRT_D6"] = grt_2_res[0][4]
+                        part_data["GRT_D7"] = grt_2_res[0][5]
+                        part_data["GRT_D8"] = grt_2_res[0][6]
+                        part_data["GRT_D9"] = grt_2_res[0][7]
+                    else:
+                        part_data["GRT_Status"] = None
+                        part_data["GRT_Scanning_Time"] = None
+                        part_data["GRT_D3"] = None
+                        part_data["GRT_D5"] = None
+                        part_data["GRT_D6"] = None
+                        part_data["GRT_D7"] = None
+                        part_data["GRT_D8"] = None
+                        part_data["GRT_D9"] = None
+                else:
+                    part_data["GRT_Status"] = grt_1_res[0][0]
+                    part_data["GRT_Scanning_Time"] = grt_1_res[0][1]
+                    part_data["GRT_D3"] = grt_1_res[0][2]
+                    part_data["GRT_D5"] = grt_1_res[0][3]
+                    part_data["GRT_D6"] = grt_1_res[0][4]
+                    part_data["GRT_D7"] = grt_1_res[0][5]
+                    part_data["GRT_D8"] = grt_1_res[0][6]
+                    part_data["GRT_D9"] = grt_1_res[0][7]
             else:
-                part_data["GRT_Status"] = grt_1_res[0][0]
-                part_data["GRT_Scanning_Time"] = grt_1_res[0][1]
-                part_data["GRT_D3"] = grt_1_res[0][2]
-                part_data["GRT_D5"] = grt_1_res[0][3]
-                part_data["GRT_D6"] = grt_1_res[0][4]
-                part_data["GRT_D7"] = grt_1_res[0][5]
-                part_data["GRT_D8"] = grt_1_res[0][6]
-                part_data["GRT_D9"] = grt_1_res[0][7]
+                # GRT search logic
+                search_grt_1 = f"""SELECT TOP 1 result_id, time_stamp, d3,d5,d6,d7,d8,d9 FROM [24M1570200_H66_1_GRT] 
+                                    WHERE part_nbr = '{part_id}' 
+                                    AND result_id = 'ACCEPT'
+                                    ORDER BY TIME_STAMP DESC"""
+                grt_1_res = await db_conn_all(search_grt_1)
+
+                if not grt_1_res:
+                    search_grt_2 = f"""SELECT TOP 1 result_id, time_stamp, d3,d5,d6,d7,d8,d9 FROM [24M1570100_H66_2_GRT] 
+                                       where part_nbr = '{part_id}' 
+                                       AND result_id = 'ACCEPT'
+                                       ORDER BY TIME_STAMP DESC"""
+                    grt_2_res = await db_conn_all(search_grt_2)
+                    if grt_2_res:
+                        part_data["GRT_Status"] = grt_2_res[0][0]
+                        part_data["GRT_Scanning_Time"] = grt_2_res[0][1]
+                        part_data["GRT_D3"] = grt_2_res[0][2]
+                        part_data["GRT_D5"] = grt_2_res[0][3]
+                        part_data["GRT_D6"] = grt_2_res[0][4]
+                        part_data["GRT_D7"] = grt_2_res[0][5]
+                        part_data["GRT_D8"] = grt_2_res[0][6]
+                        part_data["GRT_D9"] = grt_2_res[0][7]
+                    else:
+                        part_data["GRT_Status"] = None
+                        part_data["GRT_Scanning_Time"] = None
+                        part_data["GRT_D3"] = None
+                        part_data["GRT_D5"] = None
+                        part_data["GRT_D6"] = None
+                        part_data["GRT_D7"] = None
+                        part_data["GRT_D8"] = None
+                        part_data["GRT_D9"] = None
+                else:
+                    part_data["GRT_Status"] = grt_1_res[0][0]
+                    part_data["GRT_Scanning_Time"] = grt_1_res[0][1]
+                    part_data["GRT_D3"] = grt_1_res[0][2]
+                    part_data["GRT_D5"] = grt_1_res[0][3]
+                    part_data["GRT_D6"] = grt_1_res[0][4]
+                    part_data["GRT_D7"] = grt_1_res[0][5]
+                    part_data["GRT_D8"] = grt_1_res[0][6]
+                    part_data["GRT_D9"] = grt_1_res[0][7]
 
             # Multiguage search logic
             search_multiguage_1 = f"""SELECT TOP 1 result_id, time_stamp, d1,d2,d5,d6,d8,d10,d11,d12,
                                     d16,d17,d20,d21,d22,d23,d24,d25,d26,d27,d28   
                                     FROM [24M1570200_H66_1_MULTIGAUGING]  
                                     WHERE part_nbr = '{part_id}' 
+                                    AND result_id = 'ACCEPT'
                                     ORDER BY TIME_STAMP DESC"""
 
             multiguage_1_res = await db_conn_all(search_multiguage_1)
@@ -1236,33 +1331,57 @@ async def save():
             if not multiguage_1_res:
                 search_multiguage_2 = f"""SELECT TOP 1 result_id, time_stamp, d1,d2,d5,d6,d8,d10,d11,d12,
                                     d16,d17,d20,d21,d22,d23,d24,d25,d26,d27,d28
-                                    FROM [24M1570100_H66_2_MULTIGAUGING]  
-                                    WHERE part_nbr = '{part_id}' 
+                                    FROM [24M1570100_H66_2_MULTIGAUGING]
+                                    WHERE part_nbr = '{part_id}'
+                                    AND result_id = 'ACCEPT'  
                                     ORDER BY TIME_STAMP DESC"""
 
                 multiguage_2_res = await db_conn_all(search_multiguage_2)
 
-                part_data["Multiguage_Status"] = multiguage_2_res[0][0]
-                part_data["Multigauging_Scanning_Time"] = multiguage_2_res[0][1]
-                part_data["D1"] = multiguage_2_res[0][2]
-                part_data["D2"] = multiguage_2_res[0][3]
-                part_data["D5"] = multiguage_2_res[0][4]
-                part_data["D6"] = multiguage_2_res[0][5]
-                part_data["D8"] = multiguage_2_res[0][6]
-                part_data["D10"] = multiguage_2_res[0][7]
-                part_data["D11"] = multiguage_2_res[0][8]
-                part_data["D12"] = multiguage_2_res[0][9]
-                part_data["D16"] = multiguage_2_res[0][10]
-                part_data["D17"] = multiguage_2_res[0][11]
-                part_data["D20"] = multiguage_2_res[0][12]
-                part_data["D21"] = multiguage_2_res[0][13]
-                part_data["D22"] = multiguage_2_res[0][14]
-                part_data["D23"] = multiguage_2_res[0][15]
-                part_data["D24"] = multiguage_2_res[0][16]
-                part_data["D25"] = multiguage_2_res[0][17]
-                part_data["D26"] = multiguage_2_res[0][18]
-                part_data["D27"] = multiguage_2_res[0][19]
-                part_data["D28"] = multiguage_2_res[0][20]
+                if multiguage_2_res:
+                    part_data["Multiguage_Status"] = multiguage_2_res[0][0]
+                    part_data["Multigauging_Scanning_Time"] = multiguage_2_res[0][1]
+                    part_data["D1"] = multiguage_2_res[0][2]
+                    part_data["D2"] = multiguage_2_res[0][3]
+                    part_data["D5"] = multiguage_2_res[0][4]
+                    part_data["D6"] = multiguage_2_res[0][5]
+                    part_data["D8"] = multiguage_2_res[0][6]
+                    part_data["D10"] = multiguage_2_res[0][7]
+                    part_data["D11"] = multiguage_2_res[0][8]
+                    part_data["D12"] = multiguage_2_res[0][9]
+                    part_data["D16"] = multiguage_2_res[0][10]
+                    part_data["D17"] = multiguage_2_res[0][11]
+                    part_data["D20"] = multiguage_2_res[0][12]
+                    part_data["D21"] = multiguage_2_res[0][13]
+                    part_data["D22"] = multiguage_2_res[0][14]
+                    part_data["D23"] = multiguage_2_res[0][15]
+                    part_data["D24"] = multiguage_2_res[0][16]
+                    part_data["D25"] = multiguage_2_res[0][17]
+                    part_data["D26"] = multiguage_2_res[0][18]
+                    part_data["D27"] = multiguage_2_res[0][19]
+                    part_data["D28"] = multiguage_2_res[0][20]
+                else:
+                    part_data["Multiguage_Status"] = None
+                    part_data["Multigauging_Scanning_Time"] = None
+                    part_data["D1"] = None
+                    part_data["D2"] = None
+                    part_data["D5"] = None
+                    part_data["D6"] = None
+                    part_data["D8"] = None
+                    part_data["D10"] = None
+                    part_data["D11"] = None
+                    part_data["D12"] = None
+                    part_data["D16"] = None
+                    part_data["D17"] = None
+                    part_data["D20"] = None
+                    part_data["D21"] = None
+                    part_data["D22"] = None
+                    part_data["D23"] = None
+                    part_data["D24"] = None
+                    part_data["D25"] = None
+                    part_data["D26"] = None
+                    part_data["D27"] = None
+                    part_data["D28"] = None
             else:
                 part_data["Multiguage_Status"] = multiguage_1_res[0][0]
                 part_data["Multigauging_Scanning_Time"] = multiguage_1_res[0][1]
@@ -1316,6 +1435,248 @@ async def save():
             return redirect(url_for("packing_scan"))
     else:
         return redirect(url_for("packing_scan"))
+
+
+@app.route("/export_box", methods=["POST", "GET"])
+@login_required
+async def export_box():
+    form = await request.form
+
+    if request.method == 'POST':
+        box_id = form.get('box_id')
+        print(f'{box_id} for exporting the box')
+
+        try:
+            # Get box data
+            get_box_data = f"""SELECT date_time, part_qty, rev_no, group_type, operator_name
+                            FROM H66_PACKING_MASTER 
+                            WHERE box_id = '{box_id}'"""
+            box_data = await db_conn_one(get_box_data)
+
+            if box_data:
+                date_time = box_data[0]
+                part_qty = box_data[1]
+                rev_no = box_data[2]
+                group_type = box_data[3]
+                operator_name = box_data[4]
+            else:
+                await flash(f"Box ID {box_id} does not exist", "error")
+                return redirect(url_for('packing_summary'))
+
+                # Get part data
+            get_part_data_dict = f"""SELECT part_id, honing_type, od_machine, honing_dresser_id 
+                            FROM H66_PACKING_PART_MASTER 
+                            WHERE box_id = '{box_id}'"""
+            part_data_dict = await db_conn_all(get_part_data_dict)
+
+            data_part_master = []
+
+            if part_data_dict:
+                for values in part_data_dict:
+                    part_id = values[0]
+                    honing_type = values[1]
+                    od_machine = values[2]
+                    honing_dresser_id = values[3]
+
+                    part_data_dict = {
+                        "part_id": part_id,
+                        "honing_type": honing_type,
+                        "od_machine": od_machine,
+                        "honing_dresser_id": honing_dresser_id,
+                    }
+
+                    data_part_master.append(part_data_dict)
+
+                    # GRT search logic
+                    try:
+                        if group_type == 'C':
+                            # GRT search logic
+                            search_grt_1 = f"""SELECT TOP 1 result_id, time_stamp, d3,d5,d6,d7,d8,d9 FROM [24M1570200_H66_1_GRT] 
+                                                WHERE part_nbr = '{part_id}' 
+                                                ORDER BY TIME_STAMP DESC"""
+                            grt_1_res = await db_conn_all(search_grt_1)
+
+                            if not grt_1_res:
+                                search_grt_2 = f"""SELECT TOP 1 result_id, time_stamp, d3,d5,d6,d7,d8,d9 FROM [24M1570100_H66_2_GRT] 
+                                                   where part_nbr = '{part_id}' 
+                                                   ORDER BY TIME_STAMP DESC"""
+                                grt_2_res = await db_conn_all(search_grt_2)
+                                if grt_2_res:
+                                    part_data_dict["GRT_Status"] = grt_2_res[0][0]
+                                    part_data_dict["GRT_Scanning_Time"] = grt_2_res[0][1]
+                                    part_data_dict["GRT_D3"] = grt_2_res[0][2]
+                                    part_data_dict["GRT_D5"] = grt_2_res[0][3]
+                                    part_data_dict["GRT_D6"] = grt_2_res[0][4]
+                                    part_data_dict["GRT_D7"] = grt_2_res[0][5]
+                                    part_data_dict["GRT_D8"] = grt_2_res[0][6]
+                                    part_data_dict["GRT_D9"] = grt_2_res[0][7]
+                                else:
+                                    part_data_dict["GRT_Status"] = None
+                                    part_data_dict["GRT_Scanning_Time"] = None
+                                    part_data_dict["GRT_D3"] = None
+                                    part_data_dict["GRT_D5"] = None
+                                    part_data_dict["GRT_D6"] = None
+                                    part_data_dict["GRT_D7"] = None
+                                    part_data_dict["GRT_D8"] = None
+                                    part_data_dict["GRT_D9"] = None
+                            else:
+                                part_data_dict["GRT_Status"] = grt_1_res[0][0]
+                                part_data_dict["GRT_Scanning_Time"] = grt_1_res[0][1]
+                                part_data_dict["GRT_D3"] = grt_1_res[0][2]
+                                part_data_dict["GRT_D5"] = grt_1_res[0][3]
+                                part_data_dict["GRT_D6"] = grt_1_res[0][4]
+                                part_data_dict["GRT_D7"] = grt_1_res[0][5]
+                                part_data_dict["GRT_D8"] = grt_1_res[0][6]
+                                part_data_dict["GRT_D9"] = grt_1_res[0][7]
+                        else:
+                            # GRT search logic
+                            search_grt_1 = f"""SELECT TOP 1 result_id, time_stamp, d3,d5,d6,d7,d8,d9 FROM [24M1570200_H66_1_GRT] 
+                                                WHERE part_nbr = '{part_id}' 
+                                                AND result_id = 'ACCEPT'
+                                                ORDER BY TIME_STAMP DESC"""
+                            grt_1_res = await db_conn_all(search_grt_1)
+
+                            if not grt_1_res:
+                                search_grt_2 = f"""SELECT TOP 1 result_id, time_stamp, d3,d5,d6,d7,d8,d9 FROM [24M1570100_H66_2_GRT] 
+                                                   where part_nbr = '{part_id}' 
+                                                   AND result_id = 'ACCEPT'
+                                                   ORDER BY TIME_STAMP DESC"""
+                                grt_2_res = await db_conn_all(search_grt_2)
+                                if grt_2_res:
+                                    part_data_dict["GRT_Status"] = grt_2_res[0][0]
+                                    part_data_dict["GRT_Scanning_Time"] = grt_2_res[0][1]
+                                    part_data_dict["GRT_D3"] = grt_2_res[0][2]
+                                    part_data_dict["GRT_D5"] = grt_2_res[0][3]
+                                    part_data_dict["GRT_D6"] = grt_2_res[0][4]
+                                    part_data_dict["GRT_D7"] = grt_2_res[0][5]
+                                    part_data_dict["GRT_D8"] = grt_2_res[0][6]
+                                    part_data_dict["GRT_D9"] = grt_2_res[0][7]
+                                else:
+                                    part_data_dict["GRT_Status"] = None
+                                    part_data_dict["GRT_Scanning_Time"] = None
+                                    part_data_dict["GRT_D3"] = None
+                                    part_data_dict["GRT_D5"] = None
+                                    part_data_dict["GRT_D6"] = None
+                                    part_data_dict["GRT_D7"] = None
+                                    part_data_dict["GRT_D8"] = None
+                                    part_data_dict["GRT_D9"] = None
+                            else:
+                                part_data_dict["GRT_Status"] = grt_1_res[0][0]
+                                part_data_dict["GRT_Scanning_Time"] = grt_1_res[0][1]
+                                part_data_dict["GRT_D3"] = grt_1_res[0][2]
+                                part_data_dict["GRT_D5"] = grt_1_res[0][3]
+                                part_data_dict["GRT_D6"] = grt_1_res[0][4]
+                                part_data_dict["GRT_D7"] = grt_1_res[0][5]
+                                part_data_dict["GRT_D8"] = grt_1_res[0][6]
+                                part_data_dict["GRT_D9"] = grt_1_res[0][7]
+
+                    except Exception as e:
+                        await flash(f"Error fetching GRT data for part {part_id}: {str(e)}", "error")
+                        print(f"Error fetching GRT data for part {part_id}: {str(e)}")
+                        return redirect(url_for('packing_summary'))
+
+                    # Multiguage search logic
+                    try:
+                        search_multiguage_1 = f"""SELECT TOP 1 result_id, time_stamp, d1,d2,d5,d6,d8,d10,d11,d12,
+                                                d16,d17,d20,d21,d22,d23,d24,d25,d26,d27,d28   
+                                                FROM [24M1570200_H66_1_MULTIGAUGING]  
+                                                WHERE part_nbr = '{part_id}' 
+                                                AND result_id = 'ACCEPT'
+                                                ORDER BY TIME_STAMP DESC"""
+                        multiguage_1_res = await db_conn_all(search_multiguage_1)
+
+                        if not multiguage_1_res:
+                            search_multiguage_2 = f"""SELECT TOP 1 result_id, time_stamp, d1,d2,d5,d6,d8,d10,d11,d12,
+                                                d16,d17,d20,d21,d22,d23,d24,d25,d26,d27,d28
+                                                FROM [24M1570100_H66_2_MULTIGAUGING]
+                                                WHERE part_nbr = '{part_id}'
+                                                AND result_id = 'ACCEPT'  
+                                                ORDER BY TIME_STAMP DESC"""
+                            multiguage_2_res = await db_conn_all(search_multiguage_2)
+
+                            if multiguage_2_res:
+                                part_data_dict["Multiguage_Status"] = multiguage_2_res[0][0]
+                                part_data_dict["Multigauging_Scanning_Time"] = multiguage_2_res[0][1]
+                                part_data_dict["D1"] = multiguage_2_res[0][2]
+                                part_data_dict["D2"] = multiguage_2_res[0][3]
+                                part_data_dict["D5"] = multiguage_2_res[0][4]
+                                part_data_dict["D6"] = multiguage_2_res[0][5]
+                                part_data_dict["D8"] = multiguage_2_res[0][6]
+                                part_data_dict["D10"] = multiguage_2_res[0][7]
+                                part_data_dict["D11"] = multiguage_2_res[0][8]
+                                part_data_dict["D12"] = multiguage_2_res[0][9]
+                                part_data_dict["D16"] = multiguage_2_res[0][10]
+                                part_data_dict["D17"] = multiguage_2_res[0][11]
+                                part_data_dict["D20"] = multiguage_2_res[0][12]
+                                part_data_dict["D21"] = multiguage_2_res[0][13]
+                                part_data_dict["D22"] = multiguage_2_res[0][14]
+                                part_data_dict["D23"] = multiguage_2_res[0][15]
+                                part_data_dict["D24"] = multiguage_2_res[0][16]
+                                part_data_dict["D25"] = multiguage_2_res[0][17]
+                                part_data_dict["D26"] = multiguage_2_res[0][18]
+                                part_data_dict["D27"] = multiguage_2_res[0][19]
+                                part_data_dict["D28"] = multiguage_2_res[0][20]
+                            else:
+                                part_data_dict["Multiguage_Status"] = None
+                                part_data_dict["Multigauging_Scanning_Time"] = None
+                                part_data_dict["D1"] = None
+                                part_data_dict["D2"] = None
+                                part_data_dict["D5"] = None
+                                part_data_dict["D6"] = None
+                                part_data_dict["D8"] = None
+                                part_data_dict["D10"] = None
+                                part_data_dict["D11"] = None
+                                part_data_dict["D12"] = None
+                                part_data_dict["D16"] = None
+                                part_data_dict["D17"] = None
+                                part_data_dict["D20"] = None
+                                part_data_dict["D21"] = None
+                                part_data_dict["D22"] = None
+                                part_data_dict["D23"] = None
+                                part_data_dict["D24"] = None
+                                part_data_dict["D25"] = None
+                                part_data_dict["D26"] = None
+                                part_data_dict["D27"] = None
+                                part_data_dict["D28"] = None
+                        else:
+                            part_data_dict["Multiguage_Status"] = multiguage_1_res[0][0]
+                            part_data_dict["Multigauging_Scanning_Time"] = multiguage_1_res[0][1]
+                            part_data_dict["D1"] = multiguage_1_res[0][2]
+                            part_data_dict["D2"] = multiguage_1_res[0][3]
+                            part_data_dict["D5"] = multiguage_1_res[0][4]
+                            part_data_dict["D6"] = multiguage_1_res[0][5]
+                            part_data_dict["D8"] = multiguage_1_res[0][6]
+                            part_data_dict["D10"] = multiguage_1_res[0][7]
+                            part_data_dict["D11"] = multiguage_1_res[0][8]
+                            part_data_dict["D12"] = multiguage_1_res[0][9]
+                            part_data_dict["D16"] = multiguage_1_res[0][10]
+                            part_data_dict["D17"] = multiguage_1_res[0][11]
+                            part_data_dict["D20"] = multiguage_1_res[0][12]
+                            part_data_dict["D21"] = multiguage_1_res[0][13]
+                            part_data_dict["D22"] = multiguage_1_res[0][14]
+                            part_data_dict["D23"] = multiguage_1_res[0][15]
+                            part_data_dict["D24"] = multiguage_1_res[0][16]
+                            part_data_dict["D25"] = multiguage_1_res[0][17]
+                            part_data_dict["D26"] = multiguage_1_res[0][18]
+                            part_data_dict["D27"] = multiguage_1_res[0][19]
+                            part_data_dict["D28"] = multiguage_1_res[0][20]
+                    except Exception as e:
+                        await flash(f"Error fetching Multiguage data for part {part_id}: {str(e)}", "error")
+                        print(f"Error fetching  Multiguagedata for part {part_id}: {str(e)}")
+                        return redirect(url_for('packing_summary'))
+            try:
+                await save_and_open_template(data_part_master, box_id, part_qty, group_type, rev_no,
+                                             operator_name, date_time)
+            except Exception as e:
+                await flash(f"Error saving or opening the template: {str(e)}", "error")
+                print(f"Error saving or opening the template: {str(e)}")
+                return redirect(url_for('packing_summary'))
+        except Exception as e:
+            await flash(f"An error occurred while processing the export: {str(e)}", "error")
+            print(f"An error occurred while processing the export: {str(e)}")
+            return redirect(url_for('packing_summary'))
+        return redirect(url_for('packing_summary'))
+    return redirect(url_for('packing_summary'))
 
 
 @app.route("/delete-part", methods=["POST"])

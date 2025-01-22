@@ -38,7 +38,6 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 output_excel = os.path.join(script_directory, "Packed Box")
 config_file = os.path.join(script_directory, "example.ini")
 icon_path = os.path.join(script_directory, "icon", "image.ico")
-audio_path = os.path.join(script_directory, "sound", "play.wav")
 
 folder_list = ["Packed Box", "icon"]
 
@@ -79,11 +78,16 @@ multi_set = multi_admin["m_setting"]
 
 # group type setting
 set_group_type = config_data["group_type"]
-a_lower = set_group_type["A_lower"]
-a_upper = set_group_type["A_upper"]
-b_lower = set_group_type["B_lower"]
-b_upper = set_group_type["B_upper"]
-c_upper = set_group_type["C_upper"]
+d8_a_lower = set_group_type["d8_A_lower"]
+d8_a_upper = set_group_type["d8_A_upper"]
+d8_b_lower = set_group_type["d8_B_lower"]
+d8_b_upper = set_group_type["d8_B_upper"]
+d8_c_upper = set_group_type["d8_C_upper"]
+d9_a_lower = set_group_type["d9_A_lower"]
+d9_a_upper = set_group_type["d9_A_upper"]
+d9_b_lower = set_group_type["d9_B_lower"]
+d9_b_upper = set_group_type["d9_B_upper"]
+d9_c_upper = set_group_type["d9_C_upper"]
 
 try:
     ser = serial.Serial(com_port, baudrate=9600, timeout=1)
@@ -202,14 +206,16 @@ async def count_part_dual_motor(box_id):
 
 
 async def get_honing_type(part_id):
-    honing_check = (
-        f"""SELECT TOP 1 honing_type, dresser_id 
+    honing_check = f"""SELECT TOP 1 honing_type, dresser_id 
         FROM HONING_PART_MASTER 
         WHERE part_id = '{part_id}'
         ORDER BY date_time DESC"""
-    )
     result = await db_conn_all(honing_check)
-    return result[0][0], result[0][1] if result else None
+
+    if result:
+        return result[0][0], result[0][1]
+    else:
+        return None, None
 
 
 async def junkar_part_check(part_id):
@@ -221,12 +227,12 @@ async def junkar_part_check(part_id):
 
 
 async def group_type_check(part_id):
-    check_grt_1_sql = f"""SELECT TOP 1 D8 FROM [24M1570200_H66_1_GRT] 
+    check_grt_1_sql = f"""SELECT TOP 1 D8, D9 FROM [24M1570200_H66_1_GRT] 
                         WHERE part_nbr = '{part_id}' ORDER BY Time_Stamp DESC"""
     check_grt_1 = await db_conn_one(check_grt_1_sql)
 
     if check_grt_1 is None:
-        check_grt_2_sql = f"""SELECT TOP 1 D8 FROM [24M1570100_H66_2_GRT]
+        check_grt_2_sql = f"""SELECT TOP 1 D8, D9 FROM [24M1570100_H66_2_GRT]
                           WHERE part_nbr = '{part_id}' ORDER BY Time_Stamp DESC"""
         check_grt_2 = await db_conn_one(check_grt_2_sql)
 
@@ -234,19 +240,23 @@ async def group_type_check(part_id):
             return None
         else:
             d8_grt_2 = float(check_grt_2[0])
-            if float(a_lower) <= d8_grt_2 <= float(a_upper):
+            d9_grt_1 = float(check_grt_2[1])
+            if float(d8_a_lower) <= d8_grt_2 <= float(d8_a_upper) and float(d9_a_lower) <= d9_grt_1 <= float(
+                    d9_a_upper):
                 return "A"
-            elif float(b_lower) <= d8_grt_2 <= float(b_upper):
+            elif float(d8_b_lower) <= d8_grt_2 <= float(d8_b_upper) and float(d9_b_lower) <= d9_grt_1 <= float(
+                    d9_b_upper):
                 return "B"
-            elif d8_grt_2 >= float(c_upper):
+            elif d8_grt_2 >= float(d8_c_upper) and d9_grt_1 >= float(d9_c_upper):
                 return "C"
     else:
         d8_grt_1 = float(check_grt_1[0])
-        if float(a_lower) <= d8_grt_1 <= float(a_upper):
+        d9_grt_1 = float(check_grt_1[1])
+        if float(d8_a_lower) <= d8_grt_1 <= float(d8_a_upper) and float(d9_a_lower) <= d9_grt_1 <= float(d9_a_upper):
             return "A"
-        elif float(b_lower) <= d8_grt_1 <= float(b_upper):
+        elif float(d8_b_lower) <= d8_grt_1 <= float(d8_b_upper) and float(d9_b_lower) <= d9_grt_1 <= float(d9_b_upper):
             return "B"
-        elif d8_grt_1 >= float(c_upper):
+        elif d8_grt_1 >= float(d8_c_upper) and d9_grt_1 >= float(d9_c_upper):
             return "C"
 
 
@@ -368,10 +378,8 @@ async def packing_selection():
                 else:
                     zero = 0
                     current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    insert_query = (
-                        f"""INSERT INTO H66_PACKING_MASTER (box_id, date_time, group_type, part_qty, operator_name) 
+                    insert_query = f"""INSERT INTO H66_PACKING_MASTER (box_id, date_time, group_type, part_qty, operator_name) 
                         VALUES ('{box_id}', '{current_datetime}', '{group_type}', '{zero}','{operator_name}')"""
-                    )
                     await db_conn_commit(insert_query)
                     print(f"Box ID {box_id} accepted and saved")
                     messages.append(
@@ -497,9 +505,7 @@ async def packing_scan():
             print(f"Received Data:{serial_read}; {len(serial_read)}")
             logging.info(f"Received Data:{serial_read}; {len(serial_read)}")
 
-            last_box_sql = (
-                "SELECT box_id, group_type FROM H66_PACKING_MASTER WHERE status is null"
-            )
+            last_box_sql = "SELECT box_id, group_type FROM H66_PACKING_MASTER WHERE status is null"
             box_details = await db_conn_one(last_box_sql)
 
             if box_details:
@@ -509,11 +515,12 @@ async def packing_scan():
 
             part_counter = await count_part_dual_motor(box_id)
             if part_counter < 228:
-                if serial_read.startswith(box_start) and len(serial_read) == box_len:
+                if (
+                    serial_read.startswith(box_start)
+                    and len(serial_read) == box_len
+                ):
                     box_id = serial_read
-                    top_box_sql = (
-                        f"SELECT 1 FROM H66_PACKING_MASTER WHERE box_id = '{box_id}'"
-                    )
+                    top_box_sql = f"SELECT 1 FROM H66_PACKING_MASTER WHERE box_id = '{box_id}'"
                     top_box_row = await db_conn_one(top_box_sql)
 
                     if top_box_row:
@@ -527,9 +534,7 @@ async def packing_scan():
                         logging.info(f"Box ID {box_id} is duplicate")
 
                     else:
-                        box_id_query = (
-                            "SELECT box_id FROM H66_PACKING_MASTER WHERE status is null"
-                        )
+                        box_id_query = "SELECT box_id FROM H66_PACKING_MASTER WHERE status is null"
                         box_id_row = await db_conn_one(box_id_query)
                         if box_id_row:
                             box_id = box_id_row[0]
@@ -572,12 +577,11 @@ async def packing_scan():
                             "message": "Please scan Box ID before scanning part OR Box ID is not in proper format",
                         }
                     )
-                    logging.info(
-                        "Please scan Box ID before scanning part OR Box ID is not in proper format"
-                    )
+                    logging.info("Please scan Box ID before scanning part OR Box ID is not in proper format")
 
                 elif (
-                        serial_read.startswith(part_starts) and len(serial_read) == part_len
+                        serial_read.startswith(part_starts)
+                        and len(serial_read) == part_len
                 ):
                     part_id = serial_read
                     part_sql = f"SELECT 1 FROM H66_PACKING_PART_MASTER WHERE part_id = '{part_id}'"
@@ -622,12 +626,11 @@ async def packing_scan():
                             current_datetime_part = datetime.now().strftime(
                                 "%Y-%m-%d %H:%M:%S"
                             )
-                            insert_query = (
-                                f"""INSERT INTO H66_PACKING_PART_MASTER 
+                            insert_query = f"""INSERT INTO H66_PACKING_PART_MASTER 
                                 (part_id, box_id, date_time, honing_type, honing_dresser_id, od_machine) 
                                 VALUES ('{part_id}', '{box_id}', '{current_datetime_part}', 
-                                '{honing_type}', '{dresser_id}','{zunkar_bool}')"""
-                            )
+                                '{honing_type}', '{dresser_id}','{zunkar_bool}') """
+
                             await db_conn_commit(insert_query)
                             print(f"The Part ID {part_id} accepted and saved")
                             messages.append(
@@ -637,6 +640,15 @@ async def packing_scan():
                                 }
                             )
                             logging.info(f"The Part ID {part_id} accepted and saved")
+                    elif honing_type is None:
+                        print("Please scan on Honing Machine First")
+                        messages.append(
+                            {
+                                "type": "error",
+                                "message": "Please scan on Honing Machine First",
+                            }
+                        )
+                        logging.info("Please scan on Honing Machine First")
                     elif (
                             H66_1_GRT is None
                             and H66_2_GRT is None
@@ -650,14 +662,14 @@ async def packing_scan():
                         messages.append(
                             {
                                 "type": "error",
-                                "message":
-                                    f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage",
+                                    "message": f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage",
                             }
                         )
-                        logging.info(
-                            f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage"
-                        )
-                    elif check_group_type_multiguage is None and multi_set == "True":
+                        logging.info(f"Part ID {part_id} is pending for scan on either of the GRT and either of the Multiguage")
+
+                    elif (
+                            check_group_type_multiguage is None
+                            and multi_set == "True"):
                         print("No group type has been identified")
                         messages.append(
                             {
@@ -683,7 +695,9 @@ async def packing_scan():
                             f"Group Type is '{group_type}' but '{check_group_type_multiguage}' has been scanned"
                         )
                     elif (
-                            H66_1_GRT is None and H66_2_GRT is None and multi_set == "True"
+                            H66_1_GRT is None
+                            and H66_2_GRT is None
+                            and multi_set == "True"
                     ):
                         print(
                             f"Pending status on H66_1_GRT or H66_2_GRT for Part id {part_id}"
@@ -754,7 +768,8 @@ async def packing_scan():
                             f"Part ID {part_id} is rejected on both GRTs and both multigauges"
                         )
                     elif (H66_1_GRT is None and H66_2_GRT == "ACCEPT") and (
-                            H66_1_MULTIGAUGING is None and H66_2_MULTIGAUGING == "REJECT"
+                            H66_1_MULTIGAUGING is None
+                            and H66_2_MULTIGAUGING == "REJECT"
                     ):
                         print(f"Part ID {part_id} is rejected on H66_2_MULTIGUAGE")
                         messages.append(
@@ -767,7 +782,8 @@ async def packing_scan():
                             f"Part ID {part_id} is rejected on H66_2_MULTIGUAGE"
                         )
                     elif (H66_1_GRT is None and H66_2_GRT == "REJECT") and (
-                            H66_1_MULTIGAUGING is None and H66_2_MULTIGAUGING == "ACCEPT"
+                            H66_1_MULTIGAUGING is None
+                            and H66_2_MULTIGAUGING == "ACCEPT"
                     ):
                         print(f"Part ID {part_id} is rejected on H66_2_GRT")
                         messages.append(
@@ -778,20 +794,24 @@ async def packing_scan():
                         )
                         logging.info(f"Part ID {part_id} is rejected on H66_2_GRT")
                     elif (H66_1_GRT == "ACCEPT" and H66_2_GRT is None) and (
-                            H66_1_MULTIGAUGING == "REJECT" and H66_2_MULTIGAUGING is None
+                            H66_1_MULTIGAUGING == "REJECT"
+                            and H66_2_MULTIGAUGING is None
                     ):
-                        print(f"Part ID {part_id} is rejected on H66_1_MULTIGUAGING")
-                        messages.append(
+                            print(
+                                f"Part ID {part_id} is rejected on H66_1_MULTIGUAGING"
+                            )
+                            messages.append(
                             {
                                 "type": "error",
                                 "message": f"Part ID {part_id} is rejected on H66_1_MULTIGUAGING",
                             }
-                        )
-                        logging.info(
+                            )
+                            logging.info(
                             f"Part ID {part_id} is rejected on H66_1_MULTIGUAGING"
-                        )
+                            )
                     elif (H66_1_GRT == "REJECT" and H66_2_GRT is None) and (
-                            H66_1_MULTIGAUGING == "ACCEPT" and H66_2_MULTIGAUGING is None
+                            H66_1_MULTIGAUGING == "ACCEPT"
+                            and H66_2_MULTIGAUGING is None
                     ):
                         print(f"Part ID {part_id} is rejected on H66_1_GRT")
                         messages.append(
@@ -802,7 +822,8 @@ async def packing_scan():
                         )
                         logging.info(f"Part ID {part_id} is rejected on H66_1_GRT")
                     elif (H66_1_GRT == "REJECT" and H66_2_GRT is None) and (
-                            H66_1_MULTIGAUGING == "REJECT" and H66_2_MULTIGAUGING is None
+                            H66_1_MULTIGAUGING == "REJECT"
+                            and H66_2_MULTIGAUGING is None
                     ):
                         print(
                             f"Part ID {part_id} is rejected on both H66_1_GRT and H66_1_MULTIGAUGING"
@@ -817,7 +838,8 @@ async def packing_scan():
                             f"Part ID {part_id} is rejected on both H66_1_GRT and H66_1_MULTIGAUGING"
                         )
                     elif (H66_1_GRT is None and H66_2_GRT == "REJECT") and (
-                            H66_1_MULTIGAUGING is None and H66_2_MULTIGAUGING == "REJECT"
+                            H66_1_MULTIGAUGING is None
+                            and H66_2_MULTIGAUGING == "REJECT"
                     ):
                         print(
                             f"Part ID {part_id} is rejected on both H66_2_GRT and H66_2_MULTIGAUGING"
@@ -831,22 +853,13 @@ async def packing_scan():
                         logging.info(
                             f"Part ID {part_id} is rejected on both H66_2_GRT and H66_2_MULTIGAUGING"
                         )
-                    elif honing_type is None:
-                        print("Please scan on Honing Machine First")
-                        messages.append(
-                            {
-                                "type": "error",
-                                "message": "Please scan on Honing Machine First",
-                            }
-                        )
-                        logging.info("Please scan on Honing Machine First")
+
                     else:
                         part_counter += 1
                         if part_counter == 1:
                             if part_id:
                                 rev_no = part_id[11:13]
-                                update_revno_query = f"""UPDATE H66_PACKING_MASTER 
-                                                    SET rev_no = '{rev_no}' WHERE box_id = '{box_id}'"""
+                                update_revno_query = f"UPDATE H66_PACKING_MASTER SET rev_no = '{rev_no}' WHERE box_id = '{box_id}'"
                                 await db_conn_commit(update_revno_query)
                         else:
                             print(part_counter)
@@ -860,7 +873,7 @@ async def packing_scan():
                             f"""INSERT INTO H66_PACKING_PART_MASTER 
                             (part_id, box_id, date_time, honing_type, honing_dresser_id, od_machine)
                             VALUES ('{part_id}', '{box_id}', '{current_datetime_part}', 
-                            '{honing_type}', '{dresser_id}', '{zunkar_bool}')"""
+                            '{honing_type}', '{dresser_id}', '{zunkar_bool}') """
                         )
                         await db_conn_commit(insert_query)
                         print(f"The Part ID {part_id} accepted and saved")
@@ -877,7 +890,9 @@ async def packing_scan():
                                 f"WHERE box_id = '{box_id}'"
                             )
                             await db_conn_commit(update_query_box_full)
-                            print(f"The Box ID {box_id} is full. Please save the data")
+                            print(
+                                    f"The Box ID {box_id} is full. Please save the data"
+                                )
                             messages.append(
                                 {
                                     "type": "success",
@@ -901,7 +916,10 @@ async def packing_scan():
             else:
                 print("Box is full. Please use a new box")
                 messages.append(
-                    {"type": "error", "message": "Box is full. Please use a new box"}
+                        {
+                            "type": "error",
+                            "message": "Box is full. Please use a new box",
+                        }
                 )
                 logging.info("Box is full. Please use a new box")
                 break
@@ -1127,9 +1145,11 @@ async def send_email_with_attachment(
                 message.attach(part)
         except Exception as e:
             print(f"Error reading or attaching the file: {e}")
+            logging.info(f"Error reading or attaching the file: {e}")
             return
     else:
         print(f"Error: File {attachment_path} not found.")
+        logging.info(f"Error: File {attachment_path} not found.")
         return
 
     try:
@@ -1142,8 +1162,10 @@ async def send_email_with_attachment(
             password=sender_password,
         )
         print("[*] Email sent successfully.")
+        logging.info("[*] Email sent successfully.")
     except Exception as e:
         print(f"An error occurred: {e}")
+        logging.info(f"An error occurred: {e}")
 
 
 @app.route("/save", methods=["POST", "GET"])
@@ -1177,10 +1199,16 @@ async def save():
             od_machine = part_count_res[i][3]
             honing_dresser_id = part_count_res[i][4]
 
-            part_data = next((item for item in data_part_master if item['part_id'] == part_id), None)
+            part_data = next(
+                (item for item in data_part_master if item["part_id"] == part_id), None
+            )
             if not part_data:
-                part_data = {'part_id': part_id, 'honing_type': honing_type, 'od_machine': od_machine,
-                             'honing_dresser_id': honing_dresser_id}
+                part_data = {
+                    "part_id": part_id,
+                    "honing_type": honing_type,
+                    "od_machine": od_machine,
+                    "honing_dresser_id": honing_dresser_id,
+                }
                 data_part_master.append(part_data)
 
             # GRT search logic
@@ -1194,23 +1222,23 @@ async def save():
                                    where part_nbr = '{part_id}' 
                                    ORDER BY TIME_STAMP DESC"""
                 grt_2_res = await db_conn_all(search_grt_2)
-                part_data['GRT_Status'] = grt_2_res[0][0]
-                part_data['GRT_Scanning_Time'] = grt_2_res[0][1]
-                part_data['GRT_D3'] = grt_2_res[0][2]
-                part_data['GRT_D5'] = grt_2_res[0][3]
-                part_data['GRT_D6'] = grt_2_res[0][4]
-                part_data['GRT_D7'] = grt_2_res[0][5]
-                part_data['GRT_D8'] = grt_2_res[0][6]
-                part_data['GRT_D9'] = grt_2_res[0][7]
+                part_data["GRT_Status"] = grt_2_res[0][0]
+                part_data["GRT_Scanning_Time"] = grt_2_res[0][1]
+                part_data["GRT_D3"] = grt_2_res[0][2]
+                part_data["GRT_D5"] = grt_2_res[0][3]
+                part_data["GRT_D6"] = grt_2_res[0][4]
+                part_data["GRT_D7"] = grt_2_res[0][5]
+                part_data["GRT_D8"] = grt_2_res[0][6]
+                part_data["GRT_D9"] = grt_2_res[0][7]
             else:
-                part_data['GRT_Status'] = grt_1_res[0][0]
-                part_data['GRT_Scanning_Time'] = grt_1_res[0][1]
-                part_data['GRT_D3'] = grt_1_res[0][2]
-                part_data['GRT_D5'] = grt_1_res[0][3]
-                part_data['GRT_D6'] = grt_1_res[0][4]
-                part_data['GRT_D7'] = grt_1_res[0][5]
-                part_data['GRT_D8'] = grt_1_res[0][6]
-                part_data['GRT_D9'] = grt_1_res[0][7]
+                part_data["GRT_Status"] = grt_1_res[0][0]
+                part_data["GRT_Scanning_Time"] = grt_1_res[0][1]
+                part_data["GRT_D3"] = grt_1_res[0][2]
+                part_data["GRT_D5"] = grt_1_res[0][3]
+                part_data["GRT_D6"] = grt_1_res[0][4]
+                part_data["GRT_D7"] = grt_1_res[0][5]
+                part_data["GRT_D8"] = grt_1_res[0][6]
+                part_data["GRT_D9"] = grt_1_res[0][7]
 
             # Multiguage search logic
             search_multiguage_1 = f"""SELECT TOP 1 result_id, time_stamp, d1,d2,d5,d6,d8,d10,d11,d12,
@@ -1230,49 +1258,49 @@ async def save():
 
                 multiguage_2_res = await db_conn_all(search_multiguage_2)
 
-                part_data['Multiguage_Status'] = multiguage_2_res[0][0]
-                part_data['Multigauging_Scanning_Time'] = multiguage_2_res[0][1]
-                part_data['D1'] = multiguage_2_res[0][2]
-                part_data['D2'] = multiguage_2_res[0][3]
-                part_data['D5'] = multiguage_2_res[0][4]
-                part_data['D6'] = multiguage_2_res[0][5]
-                part_data['D8'] = multiguage_2_res[0][6]
-                part_data['D10'] = multiguage_2_res[0][7]
-                part_data['D11'] = multiguage_2_res[0][8]
-                part_data['D12'] = multiguage_2_res[0][9]
-                part_data['D16'] = multiguage_2_res[0][10]
-                part_data['D17'] = multiguage_2_res[0][11]
-                part_data['D20'] = multiguage_2_res[0][12]
-                part_data['D21'] = multiguage_2_res[0][13]
-                part_data['D22'] = multiguage_2_res[0][14]
-                part_data['D23'] = multiguage_2_res[0][15]
-                part_data['D24'] = multiguage_2_res[0][16]
-                part_data['D25'] = multiguage_2_res[0][17]
-                part_data['D26'] = multiguage_2_res[0][18]
-                part_data['D27'] = multiguage_2_res[0][19]
-                part_data['D28'] = multiguage_2_res[0][20]
+                part_data["Multiguage_Status"] = multiguage_2_res[0][0]
+                part_data["Multigauging_Scanning_Time"] = multiguage_2_res[0][1]
+                part_data["D1"] = multiguage_2_res[0][2]
+                part_data["D2"] = multiguage_2_res[0][3]
+                part_data["D5"] = multiguage_2_res[0][4]
+                part_data["D6"] = multiguage_2_res[0][5]
+                part_data["D8"] = multiguage_2_res[0][6]
+                part_data["D10"] = multiguage_2_res[0][7]
+                part_data["D11"] = multiguage_2_res[0][8]
+                part_data["D12"] = multiguage_2_res[0][9]
+                part_data["D16"] = multiguage_2_res[0][10]
+                part_data["D17"] = multiguage_2_res[0][11]
+                part_data["D20"] = multiguage_2_res[0][12]
+                part_data["D21"] = multiguage_2_res[0][13]
+                part_data["D22"] = multiguage_2_res[0][14]
+                part_data["D23"] = multiguage_2_res[0][15]
+                part_data["D24"] = multiguage_2_res[0][16]
+                part_data["D25"] = multiguage_2_res[0][17]
+                part_data["D26"] = multiguage_2_res[0][18]
+                part_data["D27"] = multiguage_2_res[0][19]
+                part_data["D28"] = multiguage_2_res[0][20]
             else:
-                part_data['Multiguage_Status'] = multiguage_1_res[0][0]
-                part_data['Multigauging_Scanning_Time'] = multiguage_1_res[0][1]
-                part_data['D1'] = multiguage_1_res[0][2]
-                part_data['D2'] = multiguage_1_res[0][3]
-                part_data['D5'] = multiguage_1_res[0][4]
-                part_data['D6'] = multiguage_1_res[0][5]
-                part_data['D8'] = multiguage_1_res[0][6]
-                part_data['D10'] = multiguage_1_res[0][7]
-                part_data['D11'] = multiguage_1_res[0][8]
-                part_data['D12'] = multiguage_1_res[0][9]
-                part_data['D16'] = multiguage_1_res[0][10]
-                part_data['D17'] = multiguage_1_res[0][11]
-                part_data['D20'] = multiguage_1_res[0][12]
-                part_data['D21'] = multiguage_1_res[0][13]
-                part_data['D22'] = multiguage_1_res[0][14]
-                part_data['D23'] = multiguage_1_res[0][15]
-                part_data['D24'] = multiguage_1_res[0][16]
-                part_data['D25'] = multiguage_1_res[0][17]
-                part_data['D26'] = multiguage_1_res[0][18]
-                part_data['D27'] = multiguage_1_res[0][19]
-                part_data['D28'] = multiguage_1_res[0][20]
+                part_data["Multiguage_Status"] = multiguage_1_res[0][0]
+                part_data["Multigauging_Scanning_Time"] = multiguage_1_res[0][1]
+                part_data["D1"] = multiguage_1_res[0][2]
+                part_data["D2"] = multiguage_1_res[0][3]
+                part_data["D5"] = multiguage_1_res[0][4]
+                part_data["D6"] = multiguage_1_res[0][5]
+                part_data["D8"] = multiguage_1_res[0][6]
+                part_data["D10"] = multiguage_1_res[0][7]
+                part_data["D11"] = multiguage_1_res[0][8]
+                part_data["D12"] = multiguage_1_res[0][9]
+                part_data["D16"] = multiguage_1_res[0][10]
+                part_data["D17"] = multiguage_1_res[0][11]
+                part_data["D20"] = multiguage_1_res[0][12]
+                part_data["D21"] = multiguage_1_res[0][13]
+                part_data["D22"] = multiguage_1_res[0][14]
+                part_data["D23"] = multiguage_1_res[0][15]
+                part_data["D24"] = multiguage_1_res[0][16]
+                part_data["D25"] = multiguage_1_res[0][17]
+                part_data["D26"] = multiguage_1_res[0][18]
+                part_data["D27"] = multiguage_1_res[0][19]
+                part_data["D28"] = multiguage_1_res[0][20]
 
         if part_count_res:
             part_count1 = part_count_res[0][0]
